@@ -1,4 +1,4 @@
-import { formatOhlcFromApi, insertOhlcBatch, fetchGroupedOhlcData, fetchAggregatedData, fetchSectorsData, fetchStratSectors, fetchStratBySector, fetchStratBySymbol, fetchSymbols, fetchSectorsPerformance, fetchStratGainers, fetchStratLosers, fetchStratVolume, fetchApiByDate, insertNewInstruments } from '../services/data.service.js'
+import { formatOhlcFromApi, insertOhlcBatch, fetchGroupedOhlcData, fetchAggregatedData, fetchSectorsData, fetchStratSectors, fetchStratBySector, fetchStratBySymbol, fetchSymbols, fetchSectorsPerformance, fetchStratGainers, fetchStratLosers, fetchStratVolume, insertNewInstruments, editInstruments } from '../services/data.service.js'
 
 
 export const getOhlcGroupedData = async (req, res) => {
@@ -253,3 +253,31 @@ export const addNewInstruments = async (req, res) => {
     });
   }
 }
+
+export const updateInstruments = async (req, res) => {
+  const data = req.body;
+
+  try {
+    const result = await editInstruments({ instruments: data });
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Instrument(s) updated successfully.'
+    });
+  } catch (error) {
+
+    let customError;
+
+    if (error.code === '23505' && error.constraint === 'instrument_symbol_key') {
+      customError = 'The symbol already exists in the database.';
+    } else {
+      customError = 'Error updating instrument(s).'
+    }
+
+    res.status(500).json({
+      success: false,
+      data: null,
+      message: customError
+    });
+  }
+};

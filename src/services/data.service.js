@@ -777,3 +777,31 @@ export const insertNewInstruments = async ({ instruments }) => {
     throw error;
   }
 }
+
+export const editInstruments = async ({ instruments }) => {
+  try {
+    if (!instruments || !instruments.length) {
+      return [];
+    }
+
+    const updates = instruments.map(
+      inst => `(${inst.id}, '${inst.symbol}', '${inst.name}', '${inst.category}')`
+    ).join(',');
+
+    const query = `
+      UPDATE instrument AS i
+      SET 
+        symbol = c.symbol,
+        name = c.name,
+        category = c.category
+      FROM (VALUES ${updates}) AS c(id, symbol, name, category)
+      WHERE i.id = c.id::integer
+      RETURNING i.id, i.symbol, i.name, i.category;
+    `;
+
+    const result = await sql(query);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
