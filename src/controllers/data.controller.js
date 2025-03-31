@@ -1,4 +1,4 @@
-import { formatOhlcFromApi, insertOhlcBatch, fetchGroupedOhlcData, fetchAggregatedData, fetchSectorsData, fetchStratSectors, fetchStratBySector, fetchStratBySymbol, fetchSymbols, fetchSectorsPerformance, fetchStratGainers, fetchStratLosers, fetchStratVolume, insertNewInstruments, editInstruments, removeInstrument, fetchSectorStockRelations } from '../services/data.service.js'
+import { formatOhlcFromApi, insertOhlcBatch, fetchGroupedOhlcData, fetchAggregatedData, fetchSectorsData, fetchStratSectors, fetchStratBySector, fetchStratBySymbol, fetchSymbols, fetchSectorsPerformance, fetchStratGainers, fetchStratLosers, fetchStratVolume, insertNewInstruments, editInstruments, removeInstrument, fetchSectorStockRelations, insertSectorStockRelations } from '../services/data.service.js'
 
 
 export const getOhlcGroupedData = async (req, res) => {
@@ -323,6 +323,25 @@ export const getSectorStockRelations = async (req, res) => {
       success: false,
       data: null,
       message: `Sector-Stock Relations: Error retrieving data: ${error.message}`
+    });
+  }
+};
+
+export const addSectorStockRelations = async (req, res) => {
+  const data = req.body;
+  
+  try {
+    const result = await insertSectorStockRelations({ relations: data });
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Sector-Stock Relations: Data added successfully.'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      message: `Sector-Stock Relations: Error adding data: ${error.message}`
     });
   }
 };

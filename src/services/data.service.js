@@ -847,3 +847,73 @@ export const fetchSectorStockRelations = async () => {
     throw new Error(`Error obteniendo relaciones sector-stock: ${error.message}`);
   }
 }
+
+export const insertSectorStockRelations = async ({ relations }) => {
+  try {
+    if (!relations || !relations.length) {
+      throw new Error("No relations data provided");
+    }
+
+    // Extraer todos los símbolos únicos para buscarlos en una sola consulta
+    const sectorSymbols = [...new Set(relations.map(rel => rel.sector_symbol))];
+    const stockSymbols = [...new Set(relations.map(rel => rel.stock_symbol))];
+    
+    // Buscar los IDs correspondientes en la tabla instrument
+    const sectorsResult = await sql`
+      SELECT id, symbol
+      FROM instrument
+      WHERE symbol = ANY(${sectorSymbols})
+    `;
+    
+    const stocksResult = await sql`
+      SELECT id, symbol
+      FROM instrument
+      WHERE symbol = ANY(${stockSymbols})
+    `;
+    
+    // Crear mapas para búsqueda eficiente
+    const sectorMap = new Map(sectorsResult.map(s => [s.symbol, s.id]));
+    const stockMap = new Map(stocksResult.map(s => [s.symbol, s.id]));
+    
+    // Validar que todos los símbolos existan
+    const missingSymbols = [];
+    relations.forEach(rel => {
+      if (!sectorMap.has(rel.sector_symbol)) {
+        missingSymbols.push(`Sector '${rel.sector_symbol}'`);
+      }
+      if (!stockMap.has(rel.stock_symbol)) {
+        missingSymbols.push(`Stock '${rel.stock_symbol}'`);
+      }
+    });
+    
+    if (missingSymbols.length > 0) {
+      throw new Error(`The following symbols were not found: ${missingSymbols.join(', ')}`);
+    }
+    
+    // Preparar los valores para la inserción
+    const values = relations
+      .map(rel => {
+        const sectorId = sectorMap.get(rel.sector_symbol);
+        const stockId = stockMap.get(rel.stock_symbol);
+        return `(${sectorId}, ${stockId})`;
+      })
+      .join(',');
+    
+    // Insertar todas las relaciones en una sola consulta
+    const query = `
+      INSERT INTO sector_stock (id_sector, id_stock)
+      VALUES ${values}
+      ON CONFLICT (id_sector, id_stock) DO NOTHING
+      RETURNING id_sector, id_stock;
+    `;
+    
+    const result = await sql(query);
+    
+    return {
+      added: result.length,
+      total: relations.length
+    };
+  } catch (error) {
+    throw new Error(`Error adding sector-stock relations: ${error.message}`);
+  }
+}
