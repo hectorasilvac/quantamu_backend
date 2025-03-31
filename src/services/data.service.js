@@ -805,3 +805,45 @@ export const editInstruments = async ({ instruments }) => {
     throw error;
   }
 }
+
+export const removeInstrument = async ({ id }) => {
+  try {
+    const exists = await sql`SELECT id, symbol FROM instrument WHERE id = ${id}`;
+    
+    if (!exists.length) {
+      return null;
+    }
+    
+    const result = await sql`
+      DELETE FROM instrument
+      WHERE id = ${id}
+      RETURNING id, symbol, name, category
+    `;
+    
+    return result[0];
+  } catch (error) {
+    throw error;
+  }
+}
+
+export const fetchSectorStockRelations = async () => {
+  try {
+    const result = await sql`
+      SELECT 
+        ss.id_sector as sector_id,
+        sector.symbol as sector_symbol,
+        sector.name as sector_name,
+        ss.id_stock as stock_id,
+        stock.symbol as stock_symbol,
+        stock.name as stock_name
+      FROM sector_stock ss
+      JOIN instrument sector ON ss.id_sector = sector.id
+      JOIN instrument stock ON ss.id_stock = stock.id
+      ORDER BY sector.symbol, stock.symbol
+    `;
+    
+    return result;
+  } catch (error) {
+    throw new Error(`Error obteniendo relaciones sector-stock: ${error.message}`);
+  }
+}

@@ -1,4 +1,4 @@
-import { formatOhlcFromApi, insertOhlcBatch, fetchGroupedOhlcData, fetchAggregatedData, fetchSectorsData, fetchStratSectors, fetchStratBySector, fetchStratBySymbol, fetchSymbols, fetchSectorsPerformance, fetchStratGainers, fetchStratLosers, fetchStratVolume, insertNewInstruments, editInstruments } from '../services/data.service.js'
+import { formatOhlcFromApi, insertOhlcBatch, fetchGroupedOhlcData, fetchAggregatedData, fetchSectorsData, fetchStratSectors, fetchStratBySector, fetchStratBySymbol, fetchSymbols, fetchSectorsPerformance, fetchStratGainers, fetchStratLosers, fetchStratVolume, insertNewInstruments, editInstruments, removeInstrument, fetchSectorStockRelations } from '../services/data.service.js'
 
 
 export const getOhlcGroupedData = async (req, res) => {
@@ -278,6 +278,51 @@ export const updateInstruments = async (req, res) => {
       success: false,
       data: null,
       message: customError
+    });
+  }
+};
+
+export const deleteInstrument = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await removeInstrument({ id });
+    
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: `No instrument found with id: ${id}`
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: `Instrument ${result.symbol} removed successfully.`
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      message: `Error removing instrument: ${error.message}`
+    });
+  }
+};
+
+export const getSectorStockRelations = async (req, res) => {
+  try {
+    const result = await fetchSectorStockRelations();
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Sector-Stock Relations: Data retrieved successfully.'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      message: `Sector-Stock Relations: Error retrieving data: ${error.message}`
     });
   }
 };
