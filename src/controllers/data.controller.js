@@ -1,4 +1,4 @@
-import { formatOhlcFromApi, insertOhlcBatch, fetchGroupedOhlcData, fetchAggregatedData, fetchSectorsData, fetchStratSectors, fetchStratBySector, fetchStratBySymbol, fetchSymbols, fetchSectorsPerformance, fetchStratGainers, fetchStratLosers, fetchStratVolume, insertNewInstruments, editInstruments, removeInstrument, fetchSectorStockRelations, insertSectorStockRelations } from '../services/data.service.js'
+import { formatOhlcFromApi, insertOhlcBatch, fetchGroupedOhlcData, fetchAggregatedData, fetchSectorsData, fetchStratSectors, fetchStratBySector, fetchStratBySymbol, fetchSymbols, fetchSectorsPerformance, fetchStratGainers, fetchStratLosers, fetchStratVolume, insertNewInstruments, editInstruments, removeInstrument, fetchSectorStockRelations, insertSectorStockRelations, editSectorStockRelations, removeSectorStockRelation, fetchFutureSectorRelations, insertFutureSectorRelations  } from '../services/data.service.js'
 
 
 export const getOhlcGroupedData = async (req, res) => {
@@ -8,7 +8,7 @@ export const getOhlcGroupedData = async (req, res) => {
     if (symbols && typeof symbols === 'string') {
       symbols = symbols.split(',').map(s => s.trim());
     }
-    
+
     const result = await fetchGroupedOhlcData({ symbols });
     res.status(200).json({
       success: true,
@@ -31,7 +31,7 @@ export const getAggregatedData = async (req, res) => {
     if (symbols && typeof symbols === 'string') {
       symbols = symbols.split(',').map(s => s.trim().toUpperCase());
     }
-    
+
     const result = await fetchAggregatedData({ symbols });
     res.status(200).json({
       success: true,
@@ -49,8 +49,8 @@ export const getAggregatedData = async (req, res) => {
 
 export const updateData = async (req, res) => {
   const { date } = req.query;
-  
-    try {
+
+  try {
     const data = await formatOhlcFromApi({ customDate: date });
     const result = await insertOhlcBatch({ ohlcData: data });
 
@@ -287,7 +287,7 @@ export const deleteInstrument = async (req, res) => {
 
   try {
     const result = await removeInstrument({ id });
-    
+
     if (!result) {
       return res.status(404).json({
         success: false,
@@ -295,7 +295,7 @@ export const deleteInstrument = async (req, res) => {
         message: `No instrument found with id: ${id}`
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: result,
@@ -329,7 +329,7 @@ export const getSectorStockRelations = async (req, res) => {
 
 export const addSectorStockRelations = async (req, res) => {
   const data = req.body;
-  
+
   try {
     const result = await insertSectorStockRelations({ relations: data });
     res.status(200).json({
@@ -342,6 +342,89 @@ export const addSectorStockRelations = async (req, res) => {
       success: false,
       data: null,
       message: `Sector-Stock Relations: Error adding data: ${error.message}`
+    });
+  }
+};
+
+export const updateSectorStockRelations = async (req, res) => {
+  const data = req.body;
+
+  try {
+    const result = await editSectorStockRelations({ relations: data });
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Sector-Stock Relations: Data updated successfully.'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      message: `Sector-Stock Relations: Error updating data: ${error.message}`
+    });
+  }
+};
+
+export const deleteSectorStockRelations = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await removeSectorStockRelation({ id });
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: `No sector-stock relation found with id: ${id}`
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: `Sector-Stock Relation with id ${id} deleted successfully.`
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      message: `Sector-Stock Relations: Error deleting data: ${error.message}`
+    });
+  }
+};
+
+export const getFutureSectorRelations = async (req, res) => {
+  try {
+    const result = await fetchFutureSectorRelations();
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Future-Sector Relations: Data retrieved successfully.'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      message: `Future-Sector Relations: Error retrieving data: ${error.message}`
+    });
+  }
+};
+
+export const addFutureSectorRelations = async (req, res) => {
+  const data = req.body;
+
+  try {
+    const result = await insertFutureSectorRelations({ relations: data });
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Future-Sector Relations: Data added successfully.'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      message: `Future-Sector Relations: Error adding data: ${error.message}`
     });
   }
 };

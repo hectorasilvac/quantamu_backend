@@ -514,7 +514,7 @@ export const fetchSectorsData = async () => {
       JOIN (
         SELECT id, symbol, name 
         FROM instrument 
-        WHERE id_category = 2 
+        WHERE category = 'sector' 
           AND id IN (SELECT DISTINCT id_sector FROM sector_stock)
       ) s ON fs.id_sector = s.id
       GROUP BY f.id, f.symbol, f.name
@@ -726,8 +726,6 @@ export const fetchStratVolume = async () => {
   return stratData;
 }
 
-// TESTEO
-
 export const insertNewInstruments = async ({ instruments }) => {
   try {
     const newInstruments = await insertInstrument(instruments);
@@ -830,6 +828,7 @@ export const fetchSectorStockRelations = async () => {
   try {
     const result = await sql`
       SELECT 
+        ss.id,
         ss.id_sector as sector_id,
         sector.symbol as sector_symbol,
         sector.name as sector_name,
@@ -890,30 +889,241 @@ export const insertSectorStockRelations = async ({ relations }) => {
       throw new Error(`The following symbols were not found: ${missingSymbols.join(', ')}`);
     }
     
-    // Preparar los valores para la inserción
-    const values = relations
-      .map(rel => {
-        const sectorId = sectorMap.get(rel.sector_symbol);
-        const stockId = stockMap.get(rel.stock_symbol);
-        return `(${sectorId}, ${stockId})`;
-      })
-      .join(',');
+    // Preparar las relaciones para inserción
+    const relationsToInsert = relations.map(rel => ({
+      id_sector: sectorMap.get(rel.sector_symbol),
+      id_stock: stockMap.get(rel.stock_symbol)
+    }));
+
+    // Verificar si las relaciones ya existen
+    const addedRelations = [];
     
-    // Insertar todas las relaciones en una sola consulta
-    const query = `
-      INSERT INTO sector_stock (id_sector, id_stock)
-      VALUES ${values}
-      ON CONFLICT (id_sector, id_stock) DO NOTHING
-      RETURNING id_sector, id_stock;
-    `;
-    
-    const result = await sql(query);
+    for (const relation of relationsToInsert) {
+      try {
+        // Verificar si la relación ya existe
+        const exists = await sql`
+          SELECT id FROM sector_stock 
+          WHERE id_sector = ${relation.id_sector} AND id_stock = ${relation.id_stock}
+        `;
+        
+        if (exists.length === 0) {
+          // Insertar sólo si no existe
+          const result = await sql`
+            INSERT INTO sector_stock (id_sector, id_stock)
+            VALUES (${relation.id_sector}, ${relation.id_stock})
+            RETURNING id, id_sector, id_stock
+          `;
+          
+          if (result.length > 0) {
+            addedRelations.push(result[0]);
+          }
+        }
+      } catch (err) {
+        console.error(`Error inserting relation: ${err.message}`);
+      }
+    }
     
     return {
-      added: result.length,
+      added: addedRelations.length,
       total: relations.length
     };
   } catch (error) {
     throw new Error(`Error adding sector-stock relations: ${error.message}`);
+  }
+}
+
+export const editSectorStockRelations = async ({ relations }) => {
+  try {
+    if (!relations || !relations.length) {
+      throw new Error("No relations data provided");
+    }
+
+    // Extraer todos los símbolos únicos para buscarlos en una sola consulta
+    const sectorSymbols = [...new Set(relations.map(rel => rel.sector_symbol))];
+    const stockSymbols = [...new Set(relations.map(rel => rel.stock_symbol))];
+    
+    // Buscar los IDs correspondientes en la tabla instrument
+    const sectorsResult = await sql`
+      SELECT id, symbol
+      FROM instrument
+      WHERE symbol = ANY(${sectorSymbols})
+    `;
+    
+    const stocksResult = await sql`
+      SELECT id, symbol
+      FROM instrument
+      WHERE symbol = ANY(${stockSymbols})
+    `;
+    
+    // Crear mapas para búsqueda eficiente
+    const sectorMap = new Map(sectorsResult.map(s => [s.symbol, s.id]));
+    const stockMap = new Map(stocksResult.map(s => [s.symbol, s.id]));
+    
+    // Validar que todos los símbolos existan
+    const missingSymbols = [];
+    relations.forEach(rel => {
+      if (!sectorMap.has(rel.sector_symbol)) {
+        missingSymbols.push(`Sector '${rel.sector_symbol}'`);
+      }
+      if (!stockMap.has(rel.stock_symbol)) {
+        missingSymbols.push(`Stock '${rel.stock_symbol}'`);
+      }
+    });
+    
+    if (missingSymbols.length > 0) {
+      throw new Error(`The following symbols were not found: ${missingSymbols.join(', ')}`);
+    }
+    
+    // Actualizar cada relación por su ID
+    const results = await Promise.all(
+      relations.map(async (rel) => {
+        const sectorId = sectorMap.get(rel.sector_symbol);
+        const stockId = stockMap.get(rel.stock_symbol);
+        
+        const result = await sql`
+          UPDATE sector_stock
+          SET id_sector = ${sectorId}, id_stock = ${stockId}
+          WHERE id = ${rel.id}
+          RETURNING id, id_sector, id_stock
+        `;
+        
+        return result.length > 0 ? result[0] : null;
+      })
+    );
+    
+    // Filtrar resultados null (registros que no se encontraron)
+    const updatedRecords = results.filter(Boolean);
+    
+    return {
+      updated: updatedRecords.length,
+      total: relations.length,
+      records: updatedRecords
+    };
+  } catch (error) {
+    throw new Error(`Error updating sector-stock relations: ${error.message}`);
+  }
+}
+
+export const removeSectorStockRelation = async ({ id }) => {
+  try {
+    // Verificar si el registro existe antes de eliminarlo
+    const exists = await sql`SELECT id FROM sector_stock WHERE id = ${id}`;
+    
+    if (!exists.length) {
+      return null;
+    }
+    
+    // Eliminar el registro
+    const result = await sql`
+      DELETE FROM sector_stock
+      WHERE id = ${id}
+      RETURNING id, id_sector, id_stock
+    `;
+    
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    throw new Error(`Error eliminando relación sector-stock: ${error.message}`);
+  }
+}
+
+export const fetchFutureSectorRelations = async () => {
+  const result = await sql`
+    SELECT 
+      fs.id,
+      f.symbol AS future_symbol,
+      f.name AS future_name,
+      s.symbol AS sector_symbol,
+      s.name AS sector_name
+    FROM future_sector fs
+    JOIN instrument f ON fs.id_future = f.id
+    JOIN instrument s ON fs.id_sector = s.id
+    ORDER BY f.symbol, s.symbol
+  `;
+
+  return result;
+};
+
+export const insertFutureSectorRelations = async ({ relations }) => {
+  try {
+    if (!relations || !relations.length) {
+      throw new Error("No relations data provided");
+    }
+
+    // Extraer todos los símbolos únicos para buscarlos en una sola consulta
+    const futureSymbols = [...new Set(relations.map(rel => rel.future_symbol))];
+    const sectorSymbols = [...new Set(relations.map(rel => rel.sector_symbol))];
+    
+    // Buscar los IDs correspondientes en la tabla instrument
+    const futuresResult = await sql`
+      SELECT id, symbol
+      FROM instrument
+      WHERE symbol = ANY(${futureSymbols})
+    `;
+    
+    const sectorsResult = await sql`
+      SELECT id, symbol
+      FROM instrument
+      WHERE symbol = ANY(${sectorSymbols})
+    `;
+    
+    // Crear mapas para búsqueda eficiente
+    const futureMap = new Map(futuresResult.map(s => [s.symbol, s.id]));
+    const sectorMap = new Map(sectorsResult.map(s => [s.symbol, s.id]));
+    
+    // Validar que todos los símbolos existan
+    const missingSymbols = [];
+    relations.forEach(rel => {
+      if (!futureMap.has(rel.future_symbol)) {
+        missingSymbols.push(`Future '${rel.future_symbol}'`);
+      }
+      if (!sectorMap.has(rel.sector_symbol)) {
+        missingSymbols.push(`Sector '${rel.sector_symbol}'`);
+      }
+    });
+    
+    if (missingSymbols.length > 0) {
+      throw new Error(`The following symbols were not found: ${missingSymbols.join(', ')}`);
+    }
+    
+    // Preparar las relaciones para inserción
+    const relationsToInsert = relations.map(rel => ({
+      id_future: futureMap.get(rel.future_symbol),
+      id_sector: sectorMap.get(rel.sector_symbol)
+    }));
+
+    // Verificar si las relaciones ya existen
+    const addedRelations = [];
+    
+    for (const relation of relationsToInsert) {
+      try {
+        // Verificar si la relación ya existe
+        const exists = await sql`
+          SELECT id FROM future_sector 
+          WHERE id_future = ${relation.id_future} AND id_sector = ${relation.id_sector}
+        `;
+        
+        if (exists.length === 0) {
+          // Insertar sólo si no existe
+          const result = await sql`
+            INSERT INTO future_sector (id_future, id_sector)
+            VALUES (${relation.id_future}, ${relation.id_sector})
+            RETURNING id, id_future, id_sector
+          `;
+          
+          if (result.length > 0) {
+            addedRelations.push(result[0]);
+          }
+        }
+      } catch (err) {
+        console.error(`Error inserting relation: ${err.message}`);
+      }
+    }
+    
+    return {
+      added: addedRelations.length,
+      total: relations.length
+    };
+  } catch (error) {
+    throw new Error(`Error adding future-sector relations: ${error.message}`);
   }
 }

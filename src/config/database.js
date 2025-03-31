@@ -35,22 +35,24 @@ const initializeDB = async () => {
     await sql`CREATE INDEX IF NOT EXISTS idx_ohlc_instrument_date ON ohlc(id_instrument, date)`;
 
     await sql`
-      CREATE TABLE IF NOT EXISTS sector_stock (
-        id_sector INTEGER NOT NULL,
-        id_stock INTEGER NOT NULL,
-        FOREIGN KEY (id_sector) REFERENCES instrument(id) ON DELETE CASCADE,
-        FOREIGN KEY (id_stock) REFERENCES instrument(id) ON DELETE CASCADE,
-        PRIMARY KEY (id_sector, id_stock)
-      )
-    `;
+    CREATE TABLE IF NOT EXISTS sector_stock (
+      id BIGSERIAL PRIMARY KEY,
+      id_sector INTEGER NOT NULL,
+      id_stock INTEGER NOT NULL,
+      FOREIGN KEY (id_sector) REFERENCES instrument(id) ON DELETE CASCADE,
+      FOREIGN KEY (id_stock) REFERENCES instrument(id) ON DELETE CASCADE,
+      UNIQUE (id_sector, id_stock)
+    )
+  `;  
 
     await sql`
       CREATE TABLE IF NOT EXISTS future_sector (
+        id BIGSERIAL PRIMARY KEY,
         id_future INTEGER NOT NULL,
         id_sector INTEGER NOT NULL,
         FOREIGN KEY (id_future) REFERENCES instrument(id) ON DELETE CASCADE,
         FOREIGN KEY (id_sector) REFERENCES instrument(id) ON DELETE CASCADE,
-        PRIMARY KEY (id_future, id_sector)
+        UNIQUE (id_future, id_sector)
       )
     `;
 

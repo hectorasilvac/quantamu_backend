@@ -18,7 +18,11 @@ import {
   updateInstruments,
   deleteInstrument,
   getSectorStockRelations,
-  addSectorStockRelations
+  addSectorStockRelations,
+  updateSectorStockRelations,
+  deleteSectorStockRelations,
+  getFutureSectorRelations,
+  addFutureSectorRelations,
 } from '../controllers/data.controller.js';
 
 const router = express.Router();
@@ -37,6 +41,11 @@ router.get('/sectors', getSectorsData);
 router.get('/sectors/performance', getSectorsPerformance);
 router.get('/sectors/stocks', getSectorStockRelations);
 router.post('/sectors/stocks/add', addSectorStockRelations);
+router.put('/sectors/stocks/update', updateSectorStockRelations);
+router.delete('/sectors/stocks/delete/:id', deleteSectorStockRelations);
+
+router.get('/futures/sectors', getFutureSectorRelations);
+router.post('/futures/sectors/add', addFutureSectorRelations);
 
 router.get('/strat', validate(stratBySymbolSchema, 'query'), getStratBySymbol);
 router.get('/strat/sectors', getStratSectors);
