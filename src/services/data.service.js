@@ -1,0 +1,779 @@
+import { sql } from '../config/database.js'
+import axios from 'axios'
+import dayjs from 'dayjs'
+
+import {
+  getCandlePattern,
+  getContinuity,
+  getPoints,
+  getPotentialEntry,
+  getScenario,
+  getUnusualVolume
+} from '../utils/strat.util.js'
+import { getFormattedDate } from '../utils/date.utils.js'
+import { fetchInstruments, insertInstrument } from './db.service.js'
+
+const makeRequest = async ({ date, baseUrl, apiKey }) => {
+  try {
+    const response = await axios.get(
+      `${baseUrl}/${date}?adjusted=true&include_otc=true&apiKey=${apiKey}`
+    )
+
+    return response.data.results
+  } catch (error) {
+    if (error.response && error.response.status === 403) {
+      const yesterdayDate = getFormattedDate(1)
+      return makeRequest({ date: yesterdayDate, baseUrl, apiKey })
+
+    } else if (error.response && error.response.status === 429) {
+      const backupApiKey = process.env.BACKUP_POLYGON_API_KEY; 
+      return makeRequest({ date: date, baseUrl, apiKey: backupApiKey })
+
+    }
+    throw error
+  }
+}
+
+export const addStratData = async ({ arrObject }) => {
+  return (await Promise.all(
+    arrObject.map(async ({ symbol, daily, weekly, monthly, quarterly }) => {
+      if (!daily?.[1] || !weekly?.[1] || !monthly?.[1] || !quarterly?.[1]) {
+        return null;
+      }
+
+      const [
+        dailyScenario,
+        weeklyScenario,
+        monthlyScenario,
+        quarterlyScenario,
+        dailyPattern,
+        weeklyPattern,
+        monthlyPattern,
+        quarterlyPattern,
+        unusualVolume
+      ] = await Promise.all([
+        getScenario({
+          recentHigh: daily[0].high,
+          recentLow: daily[0].low,
+          previousHigh: daily[1].high,
+          previousLow: daily[1].low
+        }),
+        getScenario({
+          recentHigh: weekly[0].high,
+          recentLow: weekly[0].low,
+          previousHigh: weekly[1].high,
+          previousLow: weekly[1].low
+        }),
+        getScenario({
+          recentHigh: monthly[0].high,
+          recentLow: monthly[0].low,
+          previousHigh: monthly[1].high,
+          previousLow: monthly[1].low
+        }),
+        getScenario({
+          recentHigh: quarterly[0].high,
+          recentLow: quarterly[0].low,
+          previousHigh: quarterly[1].high,
+          previousLow: quarterly[1].low
+        }),
+        getCandlePattern({
+          open: daily[0].open,
+          high: daily[0].high,
+          low: daily[0].low,
+          close: daily[0].close
+        }),
+        getCandlePattern({
+          open: weekly[0].open,
+          high: weekly[0].high,
+          low: weekly[0].low,
+          close: weekly[0].close
+        }),
+        getCandlePattern({
+          open: monthly[0].open,
+          high: monthly[0].high,
+          low: monthly[0].low,
+          close: monthly[0].close
+        }),
+        getCandlePattern({
+          open: quarterly[0].open,
+          high: quarterly[0].high,
+          low: quarterly[0].low,
+          close: quarterly[0].close
+        }),
+        getUnusualVolume(daily)
+      ])
+
+      const [weeklyContinuity, monthlyContinuity, quarterlyContinuity] =
+        await Promise.all([
+          getContinuity({
+            tfOpen: weekly[0].open,
+            tfClose: weekly[0].close,
+            dailyHigh: daily[0].high,
+            dailyLow: daily[0].low,
+            dailyClose: daily[0].close,
+            dailyScenario
+          }),
+          getContinuity({
+            tfOpen: monthly[0].open,
+            tfClose: monthly[0].close,
+            dailyHigh: daily[0].high,
+            dailyLow: daily[0].low,
+            dailyClose: daily[0].close,
+            dailyScenario
+          }),
+          getContinuity({
+            tfOpen: quarterly[0].open,
+            tfClose: quarterly[0].close,
+            dailyHigh: daily[0].high,
+            dailyLow: daily[0].low,
+            dailyClose: daily[0].close,
+            dailyScenario
+          })
+        ])
+
+        const avgVolume = daily.slice(0, 30).reduce((sum, item) => sum + item.volume, 0) / Math.min(daily.length, 30);
+        const weeklyVolume = weekly[0].volume;
+        const lastPrice = daily[0].close;
+        const percentageChange = ((daily[0].close - daily[1].close) / daily[1].close) * 100;
+        const priceChange = Math.abs(daily[0].close - daily[1].close);
+        const lastDay = daily[0].date;
+
+      const [potentialEntry] = await Promise.all([
+        getPotentialEntry({
+          weeklyData: weekly,
+          dailyData: daily,
+          avgVolume,
+          weeklyContinuity,
+          monthlyContinuity,
+          quarterlyContinuity,
+          dailyScenario,
+          weeklyScenario,
+          monthlyScenario,
+          quarterlyScenario,
+          dailyPattern,
+        })
+      ])
+
+      const points = getPoints({
+        weeklyScenario,
+        monthlyScenario,
+        quarterlyScenario,
+        weeklyContinuity,
+        monthlyContinuity,
+        quarterlyContinuity,
+        dailyPattern,
+        weeklyPattern,
+        monthlyPattern,
+        quarterlyPattern,
+        unusualVolume,
+        potentialEntry,
+        weeklyVolume,
+        avgVolume,
+      });
+
+      return {
+        symbol,
+        dailyScenario,
+        weeklyScenario,
+        monthlyScenario,
+        quarterlyScenario,
+        weeklyContinuity,
+        monthlyContinuity,
+        quarterlyContinuity,
+        dailyPattern,
+        weeklyPattern,
+        monthlyPattern,
+        quarterlyPattern,
+        unusualVolume,
+        potentialEntry,
+        avgVolume,
+        weeklyVolume,
+        lastPrice,
+        percentageChange,
+        priceChange,
+        lastDay,
+        points,
+      }
+    })
+  )).filter(Boolean);
+}
+
+export const fetchAggregatedData = async ({ symbols, limit = 999999 }) => {
+  if (!Array.isArray(symbols)) {
+    symbols = [symbols]
+  }
+
+  const assets = await sql`
+    SELECT id, symbol FROM instrument
+    WHERE symbol = ANY(${symbols})
+  `
+
+  if (!assets.length) {
+    throw new Error('No assets found for the provided symbols')
+  }
+
+  // Crear un mapa para facilitar la búsqueda del id por símbolo
+  const assetMap = {}
+  assets.forEach((asset) => {
+    assetMap[asset.symbol] = asset.id
+  })
+  const assetIds = Object.values(assetMap)
+
+  if (!assetIds.length) {
+    throw new Error('No asset IDs found for the provided symbols')
+  }
+
+  const [dailyData, weeklyData, monthlyData, quarterlyData] = await Promise.all(
+    [
+      // Daily
+      sql`
+      SELECT * FROM (
+        SELECT 
+          id_instrument AS "assetId",
+          date,
+          open,
+          high,
+          low,
+          close,
+          volume,
+          ROW_NUMBER() OVER (PARTITION BY id_instrument ORDER BY date DESC) as rn
+        FROM ohlc
+        WHERE id_instrument = ANY(${assetIds})
+      ) ranked
+      WHERE rn <= ${limit}
+      ORDER BY "assetId", date DESC
+    `,
+      // Weekly
+      sql`
+      SELECT * FROM (
+        SELECT 
+          id_instrument AS "assetId",
+          date_trunc('week', date) AS date,
+          (array_agg(open ORDER BY date ASC))[1] AS open,
+          MAX(high) AS high,
+          MIN(low) AS low,
+          (array_agg(close ORDER BY date DESC))[1] AS close,
+          SUM(volume) AS volume,
+          ROW_NUMBER() OVER (PARTITION BY id_instrument ORDER BY date_trunc('week', date) DESC) AS rn
+        FROM ohlc
+        WHERE id_instrument = ANY(${assetIds})
+        GROUP BY id_instrument, date_trunc('week', date)
+      ) ranked
+      WHERE rn <= ${limit}
+      ORDER BY "assetId", date DESC
+    `,
+      // Monthly
+      sql`
+      SELECT * FROM (
+        SELECT 
+          id_instrument AS "assetId",
+          date_trunc('month', date) AS date,
+          (array_agg(open ORDER BY date ASC))[1] AS open,
+          MAX(high) AS high,
+          MIN(low) AS low,
+          (array_agg(close ORDER BY date DESC))[1] AS close,
+          SUM(volume) AS volume,
+          ROW_NUMBER() OVER (PARTITION BY id_instrument ORDER BY date_trunc('month', date) DESC) AS rn
+        FROM ohlc
+        WHERE id_instrument = ANY(${assetIds})
+        GROUP BY id_instrument, date_trunc('month', date)
+      ) ranked
+      WHERE rn <= ${limit}
+      ORDER BY "assetId", date DESC
+    `,
+      // Quarterly
+      sql`
+      SELECT * FROM (
+        SELECT 
+          id_instrument AS "assetId",
+          date_trunc('quarter', date) AS date,
+          (array_agg(open ORDER BY date ASC))[1] AS open,
+          MAX(high) AS high,
+          MIN(low) AS low,
+          (array_agg(close ORDER BY date DESC))[1] AS close,
+          SUM(volume) AS volume,
+          ROW_NUMBER() OVER (PARTITION BY id_instrument ORDER BY date_trunc('quarter', date) DESC) AS rn
+        FROM ohlc
+        WHERE id_instrument = ANY(${assetIds})
+        GROUP BY id_instrument, date_trunc('quarter', date)
+      ) ranked
+      WHERE rn <= ${limit}
+      ORDER BY "assetId", date DESC
+    `
+    ]
+  )
+
+  // Función para formatear los datos numéricos y de fecha
+  const formatData = (data) =>
+    data.map((row) => ({
+      date: dayjs(row.date).format('YYYY-MM-DD'),
+      open: +row.open,
+      high: +row.high,
+      low: +row.low,
+      close: +row.close,
+      volume: +row.volume
+    }))
+
+  // Construir la respuesta final agrupando cada símbolo
+  return symbols.map((symbol) => {
+    const assetId = assetMap[symbol]
+    return {
+      symbol,
+      daily: formatData(dailyData.filter((d) => d.assetId === assetId)),
+      weekly: formatData(weeklyData.filter((d) => d.assetId === assetId)),
+      monthly: formatData(monthlyData.filter((d) => d.assetId === assetId)),
+      quarterly: formatData(quarterlyData.filter((d) => d.assetId === assetId))
+    }
+  })
+}
+
+export const fetchSymbols = async ({ query } = {}) => {
+  if (query) {
+    const upperQuery = query.toUpperCase();
+    return await sql`
+      SELECT i.symbol, i.name,
+        COALESCE(sub.sectors, ARRAY[]::text[]) AS sectors
+      FROM instrument i
+      LEFT JOIN (
+        SELECT ss.id_stock, array_agg(s.symbol) AS sectors
+        FROM sector_stock ss
+        JOIN instrument s ON s.id = ss.id_sector
+        GROUP BY ss.id_stock
+      ) sub ON i.id = sub.id_stock
+      WHERE i.symbol ILIKE ${upperQuery + '%'} OR i.name ILIKE ${'%' + query + '%'}
+      ORDER BY 
+        CASE 
+          WHEN i.symbol = ${upperQuery} THEN 1
+          WHEN i.symbol ILIKE ${upperQuery + '%'} THEN 2
+          ELSE 3
+        END,
+        i.symbol ASC
+      LIMIT 10;
+    `;
+  }
+  return await sql`
+    SELECT i.symbol, i.name,
+      COALESCE(sub.sectors, ARRAY[]::text[]) AS sectors
+    FROM instrument i
+    LEFT JOIN (
+      SELECT ss.id_stock, array_agg(s.symbol) AS sectors
+      FROM sector_stock ss
+      JOIN instrument s ON s.id = ss.id_sector
+      GROUP BY ss.id_stock
+    ) sub ON i.id = sub.id_stock;
+  `;
+}
+
+export const fetchApi = async ({ customDate }) => {
+  const baseUrl =
+    'https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks'
+  const apiKey = process.env.POLYGON_API_KEY
+
+  let date
+
+  if (customDate) {
+    date = customDate
+  } else {
+    const today = getFormattedDate()
+    date = today
+  }
+
+  return makeRequest({ date, baseUrl, apiKey })
+}
+
+export const fetchApiByDate = async ({ symbol, startDate, endDate}) => {
+const apiKey = process.env.POLYGON_API_KEY
+  const baseUrl = `https://api.polygon.io/v2/aggs/ticker/${symbol}/range/1/day/${startDate}/${endDate}?adjusted=true&sort=asc&apiKey=${apiKey}`
+
+  try {
+    const response = await axios.get(baseUrl);
+    return response.data.results;
+
+  } catch(error) {
+    throw error;
+  }
+}
+
+export const fetchGroupedOhlcData = async ({ symbols } = {}) => {
+  try {
+    let filterClause = ''
+
+    if (symbols) {
+      const symbolsArray = Array.isArray(symbols) ? symbols : [symbols]
+      filterClause = ` AND symbol IN (${symbolsArray
+        .map((s) => `'${s}'`)
+        .join(',')}) `
+    }
+
+    const query = `
+      SELECT symbol, date, open, high, low, close, volume FROM (
+        SELECT 
+          i.symbol, o.date, o.open, o.high, o.low, o.close, o.volume,
+          ROW_NUMBER() OVER (PARTITION BY i.symbol ORDER BY o.date DESC) as rn
+        FROM ohlc o
+        JOIN instrument i ON o.id_instrument = i.id
+      ) sub
+      WHERE rn <= 30 ${filterClause}
+      ORDER BY symbol, date DESC;
+    `
+    const rows = await sql(query)
+    const grouped = rows.reduce((acc, row) => {
+      if (!acc[row.symbol]) {
+        acc[row.symbol] = []
+      }
+      acc[row.symbol].push({
+        date: dayjs(row.date).format('YYYY-MM-DD'),
+        open: row.open,
+        high: row.high,
+        low: row.low,
+        close: row.close,
+        volume: row.volume
+      })
+      return acc
+    }, {})
+
+    return Object.keys(grouped).map((symbol) => ({
+      symbol,
+      data: grouped[symbol]
+    }))
+  } catch (error) {
+    throw new Error(`Error fetching grouped OHLC data: ${error.message}`)
+  }
+}
+
+export const formatOhlcFromApi = async ({ customDate }) => {
+  try {
+    const getQuotes = await fetchApi({ customDate })
+    const getInstruments = await fetchInstruments({ type: 'all' })
+
+    const instrumentMap = new Map(
+      getInstruments.map((inst) => [inst.symbol, inst.id])
+    )
+
+    const formattedData = getQuotes
+      .filter((quote) => instrumentMap.has(quote.T))
+      .map((quote) => ({
+        id_instrument: instrumentMap.get(quote.T),
+        date: dayjs(quote.t).format('YYYY-MM-DD'),
+        open: quote.o,
+        high: quote.h,
+        low: quote.l,
+        close: quote.c,
+        volume: quote.v
+      }))
+
+    return formattedData
+  } catch (error) {
+    throw new Error(error)
+  }
+}
+
+export const insertOhlcBatch = async ({ ohlcData }) => {
+  try {
+    if (!ohlcData.length) return []
+
+    const values = ohlcData
+      .map(
+        (d) =>
+          `(${d.id_instrument}, '${d.date}', ${d.open}, ${d.high}, ${d.low}, ${d.close}, ${d.volume})`
+      )
+      .join(',')
+
+    const query = `
+      INSERT INTO ohlc (id_instrument, date, open, high, low, close, volume)
+      VALUES ${values}
+      ON CONFLICT (id_instrument, date) DO NOTHING
+      RETURNING *;
+    `
+
+    const result = await sql(query)
+    return result
+  } catch (error) {
+    throw new Error(`Error inserting OHLC data: ${error.message}`)
+  }
+}
+
+export const fetchSectorsData = async () => {
+  try {
+    const query = `
+      SELECT 
+        f.id, 
+        f.symbol, 
+        f.name, 
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'id', s.id,
+              'symbol', s.symbol,
+              'name', s.name
+            )
+          ) FILTER (WHERE s.id IS not null), '[]'
+        ) AS sectors
+      FROM future_sector fs
+      JOIN instrument f ON fs.id_future = f.id
+      JOIN (
+        SELECT id, symbol, name 
+        FROM instrument 
+        WHERE id_category = 2 
+          AND id IN (SELECT DISTINCT id_sector FROM sector_stock)
+      ) s ON fs.id_sector = s.id
+      GROUP BY f.id, f.symbol, f.name
+      ORDER BY f.id;
+    `
+    const result = await sql(query)
+    return result
+  } catch (error) {
+    throw new Error(`Error fetching future data: ${error.message}`)
+  }
+}
+
+export const fetchStratSectors = async () => {
+  const sectorSymbols = await fetchInstruments({ type: 'sector' });
+  const arrSymbols = sectorSymbols
+    .map((s) => s.symbol)
+    .join(',')
+    .split(',')
+    .map((s) => s.trim());
+  const aggSectors = await fetchAggregatedData({ symbols: arrSymbols });
+  const stratData = await addStratData({ arrObject: aggSectors });
+
+  return stratData;
+};
+
+export const fetchStratBySector = async ({ symbol }) => {
+
+  const sector = await sql`SELECT id FROM instrument WHERE symbol = ${symbol} LIMIT 1`;
+  if (!sector[0]) {
+    throw new Error(`No sector found with this symbol: ${symbol}`);
+  }
+  const stocks = await sql`
+    SELECT i.symbol 
+    FROM instrument i
+    JOIN sector_stock ss ON i.id = ss.id_stock
+    WHERE ss.id_sector = ${sector[0].id}
+  `;
+
+  if (stocks.length === 0) 
+  {
+    return [];
+  }
+  
+  const arrSymbols = stocks.map(row => row.symbol);
+  const aggSectors = await fetchAggregatedData({ symbols: arrSymbols });
+  const stratData = await addStratData({ arrObject: aggSectors });
+
+  return stratData;
+};
+
+export const fetchStratBySymbol = async ({ symbol }) => {
+  const aggSectors = await fetchAggregatedData({ symbols: symbol });
+  const stratData = await addStratData({ arrObject: aggSectors });
+
+  return stratData;
+};
+
+export const fetchSectorsPerformance = async () => {
+  try {
+    // Calcular performance directamente en SQL utilizando funciones de ventana y una CTE
+    const result = await sql`
+      WITH sector_ohlc AS (
+        SELECT
+          i.symbol,
+          o.close,
+          ROW_NUMBER() OVER (PARTITION BY i.id ORDER BY o.date DESC) AS rn
+        FROM instrument i
+        JOIN ohlc o ON o.id_instrument = i.id
+        WHERE i.id_category = 2
+      )
+      SELECT symbol,
+        CASE 
+          WHEN MAX(CASE WHEN rn = 16 THEN close END) IS NOT NULL THEN 
+            ROUND(((MAX(CASE WHEN rn = 1 THEN close END) - MAX(CASE WHEN rn = 16 THEN close END)) / MAX(CASE WHEN rn = 16 THEN close END)) * 100::numeric, 1)
+          ELSE 0
+        END AS performance
+      FROM sector_ohlc
+      GROUP BY symbol;
+    `;
+    return result;
+  } catch (error) {
+    throw new Error(`Error fetching sectors performance (SQL): ${error.message}`);
+  }
+};
+
+export const fetchTopGainers = async ({ limit = 10 }) => {
+  try {
+    const result = await sql`
+      WITH latest_date AS (
+        SELECT MAX(date) as max_date
+        FROM ohlc
+      ),
+      previous_date AS (
+        SELECT MAX(date) as prev_date
+        FROM ohlc
+        WHERE date < (SELECT max_date FROM latest_date)
+      ),
+      price_changes AS (
+        SELECT 
+          o1.id_instrument,
+          o1.close as current_close,
+          o2.close as prev_close
+        FROM ohlc o1
+        JOIN ohlc o2 ON o1.id_instrument = o2.id_instrument
+        WHERE o1.date = (SELECT max_date FROM latest_date)
+        AND o2.date = (SELECT prev_date FROM previous_date)
+      )
+      SELECT i.symbol, 
+             ((pc.current_close - pc.prev_close) / pc.prev_close * 100) as change_percent
+      FROM price_changes pc
+      JOIN instrument i ON i.id = pc.id_instrument
+      WHERE pc.prev_close > 0 
+      AND pc.current_close IS NOT NULL 
+      AND pc.prev_close IS NOT NULL
+      ORDER BY change_percent DESC
+      LIMIT ${limit}
+    `;
+    
+    return result.map(row => row.symbol);
+  } catch (error) {
+    throw new Error(`Error fetching top gainers: ${error.message}`);
+  }
+};
+
+export const fetchStratGainers = async () => {
+  const arrSymbols = await fetchTopGainers({ limit: 10 });
+  const aggSectors = await fetchAggregatedData({ symbols: arrSymbols });
+  const stratData = await addStratData({ arrObject: aggSectors });
+
+  return stratData;
+}
+
+export const fetchTopLosers = async ({ limit = 10 }) => {
+  try {
+    const result = await sql`
+      WITH latest_date AS (
+        SELECT MAX(date) as max_date
+        FROM ohlc
+      ),
+      previous_date AS (
+        SELECT MAX(date) as prev_date
+        FROM ohlc
+        WHERE date < (SELECT max_date FROM latest_date)
+      ),
+      price_changes AS (
+        SELECT 
+          o1.id_instrument,
+          o1.close as current_close,
+          o2.close as prev_close
+        FROM ohlc o1
+        JOIN ohlc o2 ON o1.id_instrument = o2.id_instrument
+        WHERE o1.date = (SELECT max_date FROM latest_date)
+        AND o2.date = (SELECT prev_date FROM previous_date)
+      )
+      SELECT i.symbol, 
+             ((pc.current_close - pc.prev_close) / pc.prev_close * 100) as change_percent
+      FROM price_changes pc
+      JOIN instrument i ON i.id = pc.id_instrument
+      WHERE pc.prev_close > 0 
+      AND pc.current_close IS NOT NULL 
+      AND pc.prev_close IS NOT NULL
+      ORDER BY change_percent ASC
+      LIMIT ${limit}
+    `;
+    
+    return result.map(row => row.symbol);
+  } catch (error) {
+    throw new Error(`Error fetching top losers: ${error.message}`);
+  }
+};
+
+export const fetchStratLosers = async () => {
+  const arrSymbols = await fetchTopLosers({ limit: 10 });
+  const aggSectors = await fetchAggregatedData({ symbols: arrSymbols });
+  const stratData = await addStratData({ arrObject: aggSectors });
+
+  return stratData;
+}
+
+export const fetchTopVolume = async ({ limit = 10 }) => {
+  try {
+    const result = await sql`
+      WITH latest_date AS (
+        SELECT MAX(date) as max_date
+        FROM ohlc
+      )
+      SELECT i.symbol,
+             o.volume
+      FROM ohlc o
+      JOIN instrument i ON i.id = o.id_instrument
+      WHERE o.date = (SELECT max_date FROM latest_date)
+      AND o.volume IS NOT NULL
+      AND o.volume > 0
+      ORDER BY o.volume DESC
+      LIMIT ${limit}
+    `;
+    
+    return result.map(row => row.symbol);
+  } catch (error) {
+    throw new Error(`Error fetching top volume: ${error.message}`);
+  }
+};
+
+export const fetchStratVolume = async () => {
+  const arrSymbols = await fetchTopVolume({ limit: 10 });
+  const aggSectors = await fetchAggregatedData({ symbols: arrSymbols });
+  const stratData = await addStratData({ arrObject: aggSectors });
+
+  return stratData;
+}
+
+// TESTEO
+
+export const insertNewInstruments = async ({ instruments }) => {
+  try {
+    const newInstruments = await insertInstrument(instruments);
+
+    const arrInstruments = newInstruments.map(newInst => {
+      const matchingInstrument = instruments.find(inst => inst.symbol === newInst.symbol);
+      if (matchingInstrument) {
+        return {
+          ...newInst,
+          startDate: matchingInstrument.startDate,
+          endDate: matchingInstrument.endDate
+        };
+      }
+      return newInst;
+    });
+
+    const formattedOhlcData = await Promise.all(
+      arrInstruments.map(async (instrument) => {
+        try {
+          const apiData = await fetchApiByDate({
+            symbol: instrument.symbol,
+            startDate: instrument.startDate,
+            endDate: instrument.endDate
+          });
+  
+          return apiData.map(quote => ({
+            id_instrument: instrument.id,
+            date: dayjs(quote.t).format('YYYY-MM-DD'),
+            open: quote.o,
+            high: quote.h,
+            low: quote.l,
+            close: quote.c,
+            volume: quote.v
+          }));
+        } catch (error) {
+          console.error(`Error fetching data for ${instrument.symbol}:`, error);
+          return [];
+        }
+      })
+    );
+  
+    const flattenedOhlcData = formattedOhlcData.flat();
+    await insertOhlcBatch({ ohlcData: flattenedOhlcData });
+  
+    return arrInstruments.map(instrument => instrument.symbol);
+  } catch(error) {
+    throw error;
+  }
+}
