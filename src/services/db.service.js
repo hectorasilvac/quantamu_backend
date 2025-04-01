@@ -2,18 +2,13 @@ import { sql } from '../config/database.js'
 
 export const fetchInstruments = async ({ type }) => {
   try {
-    const validTypes = {
-      future: 1,
-      sector: 2,
-      stock: 3
-    }
 
     let query
 
     if (type === 'all') {
       query = `SELECT * FROM instrument;`
-    } else if (validTypes[type]) {
-      query = `SELECT * FROM instrument WHERE id_category = ${validTypes[type]};`
+    } else if (type === 'future' || type === 'sector' || type === 'stock') {
+      query = `SELECT * FROM instrument WHERE category = '${type}';`
     } else {
       throw new Error(`Invalid type: ${type}`)
     }

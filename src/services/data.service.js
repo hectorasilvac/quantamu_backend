@@ -18,9 +18,10 @@ const makeRequest = async ({ date, baseUrl, apiKey }) => {
     const response = await axios.get(
       `${baseUrl}/${date}?adjusted=true&include_otc=true&apiKey=${apiKey}`
     )
-
     return response.data.results
   } catch (error) {
+    console.log(error.response.status)
+
     if (error.response && error.response.status === 403) {
       const yesterdayDate = getFormattedDate(1)
       return makeRequest({ date: yesterdayDate, baseUrl, apiKey })
@@ -28,7 +29,6 @@ const makeRequest = async ({ date, baseUrl, apiKey }) => {
     } else if (error.response && error.response.status === 429) {
       const backupApiKey = process.env.BACKUP_POLYGON_API_KEY; 
       return makeRequest({ date: date, baseUrl, apiKey: backupApiKey })
-
     }
     throw error
   }
@@ -462,9 +462,10 @@ export const formatOhlcFromApi = async ({ customDate }) => {
         volume: quote.v
       }))
 
+
     return formattedData
   } catch (error) {
-    throw new Error(error)
+    throw error;
   }
 }
 
