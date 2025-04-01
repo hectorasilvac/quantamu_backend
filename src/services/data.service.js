@@ -198,16 +198,17 @@ export const addStratData = async ({ arrObject }) => {
   )).filter(Boolean);
 }
 
-export const fetchAggregatedData = async ({ symbols = [], limit = 999999, allSymbols = false }) => {
+export const fetchAggregatedData = async ({ symbols = [], limit = 999999, isSector = 0 }) => {
   if (!Array.isArray(symbols)) {
     symbols = [symbols]
   }
 
   let assets;
 
-  if (allSymbols) {
+  if (isSector > 0) {
     assets = await sql`
       SELECT id, symbol FROM instrument
+      WHERE id_sector = ${isSector}
     `;
     
     symbols = assets.map((asset) => asset.symbol);

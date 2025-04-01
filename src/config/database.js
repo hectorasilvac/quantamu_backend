@@ -5,18 +5,28 @@ dotenv.config();
 
 const sql = neon(process.env.DATABASE_URL);
 
+// id SERIAL PRIMARY KEY,
+// name VARCHAR(50) NOT NULL UNIQUE
+
 const initializeDB = async () => {
   try {
+    await sql`
+    CREATE TABLE IF NOT EXISTS sector (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(50) NOT NULL UNIQUE
+    )
+  `;
+
     await sql`
       CREATE TABLE IF NOT EXISTS instrument (
         id SERIAL PRIMARY KEY,
         symbol TEXT UNIQUE NOT NULL,
         name TEXT NOT NULL,
-        category TEXT NOT NULL CHECK (category IN ('stock','sector','future'))
+        category TEXT NOT NULL CHECK (category IN ('stock','sector','future')),
+        id_sector INTEGER REFERENCES sector(id)
       )
     `;
 
-    // Resto de tablas
     await sql`
       CREATE TABLE IF NOT EXISTS ohlc (
         id SERIAL PRIMARY KEY,
