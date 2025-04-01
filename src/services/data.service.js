@@ -198,15 +198,26 @@ export const addStratData = async ({ arrObject }) => {
   )).filter(Boolean);
 }
 
-export const fetchAggregatedData = async ({ symbols, limit = 999999 }) => {
+export const fetchAggregatedData = async ({ symbols = [], limit = 999999, allSymbols = false }) => {
   if (!Array.isArray(symbols)) {
     symbols = [symbols]
   }
 
-  const assets = await sql`
-    SELECT id, symbol FROM instrument
-    WHERE symbol = ANY(${symbols})
-  `
+  let assets;
+
+  if (allSymbols) {
+    assets = await sql`
+      SELECT id, symbol FROM instrument
+    `;
+    
+    symbols = assets.map((asset) => asset.symbol);
+
+  } else {
+    assets = await sql`
+      SELECT id, symbol FROM instrument
+      WHERE symbol = ANY(${symbols})
+    `
+  }
 
   if (!assets.length) {
     throw new Error('No assets found for the provided symbols')
