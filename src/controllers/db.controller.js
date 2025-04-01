@@ -1,4 +1,12 @@
-import { fetchCategories, insertCategory, insertInstrument, insertSectorStock, updateCategory, fetchInstruments } from '../services/db.service.js';
+import {
+  fetchCategories,
+  insertCategory,
+  insertInstrument,
+  insertSectorStock,
+  updateCategory,
+  fetchInstruments,
+  fetchSectors
+} from '../services/db.service.js';
 
 export const addInstrument = async (req, res) => {
   const instruments = req.body;
@@ -115,3 +123,22 @@ export const getCategories = async (req, res) => {
     });
   }
 };
+
+export const getSectors = async (req, res) => {
+  try {
+    const result = await fetchSectors();
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Sectors retrieved successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      message: `Error retrieving sectors: ${error.message}`
+    });
+  }
+};
+
+

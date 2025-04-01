@@ -98,4 +98,16 @@ export const fetchCategories = async () => {
   }
 }
 
+export const fetchSectors = async () => {
+  try {
+    const result = await sql`
+      SELECT id, name
+      FROM sector
+      ORDER BY id;
+    `;
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
 

@@ -1,12 +1,13 @@
-const UP = 'up'
-const DOWN = 'down'
-const INSIDE = 'inside'
-const OUTSIDE = 'outside'
-const NONE = 'none'
-const SHOOTER = 'shooter'
-const HAMMER = 'hammer'
-const TRUE_VALUE = 'true'
-const FALSE_VALUE = 'false'
+export const ANY = 'any'
+export const UP = 'up'
+export const DOWN = 'down'
+export const INSIDE = 'inside'
+export const OUTSIDE = 'outside'
+export const NONE = 'none'
+export const SHOOTER = 'shooter'
+export const HAMMER = 'hammer'
+export const TRUE_VALUE = 'true'
+export const FALSE_VALUE = 'false'
 
 const isValidNumber = (value) => typeof value === 'number' && !isNaN(value);
 
@@ -26,6 +27,18 @@ const isUnusualInRange = (volume, bulkData, start, end, check) => {
   } else {
     throw new Error("El parámetro 'check' debe ser 'low' o 'high'.");
   }
+};
+
+export const getBarType = ({ recentHigh, recentLow, previousHigh, previousLow }) => {
+
+  const candlePattern = getCandlePattern({ recentHigh, recentLow, previousHigh, previousLow });
+
+  if (candlePattern === NONE) {
+    const scenario = getScenario({ recentHigh, recentLow, previousHigh, previousLow });
+    return scenario;
+  }
+
+  return candlePattern;
 };
 
 export const isInsideActionable = ({ pastWeeklyTrigger, dailyData, key = "high" }) => {

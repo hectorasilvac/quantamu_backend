@@ -1,7 +1,7 @@
 import express from 'express';
 import { validate } from '../middlewares/validate.middleware.js'
 import { addCategorySchema, addInstrumentSchema, editCategorySchema, getInstrumentsSchema } from '../validations/db.schema.js';
-import { addCategory, addInstrument, addSectorStock, editCategory, getInstruments, getCategories } from '../controllers/db.controller.js'; // Corrige la extensión del archivo
+import { addCategory, addInstrument, addSectorStock, editCategory, getInstruments, getCategories, getSectors } from '../controllers/db.controller.js'; // Corrige la extensión del archivo
 
 const router = express.Router()
 
@@ -13,5 +13,7 @@ router.post('/instrument', validate(addInstrumentSchema), addInstrument);
 router.get('/instrument', validate(getInstrumentsSchema, 'query'), getInstruments);
 
 router.post('/sector/stock', addSectorStock);
+
+router.get('/sector', getSectors);
 
 export default router

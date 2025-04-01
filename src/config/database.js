@@ -5,9 +5,6 @@ dotenv.config();
 
 const sql = neon(process.env.DATABASE_URL);
 
-// id SERIAL PRIMARY KEY,
-// name VARCHAR(50) NOT NULL UNIQUE
-
 const initializeDB = async () => {
   try {
     await sql`

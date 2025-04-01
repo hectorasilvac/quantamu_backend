@@ -16,3 +16,11 @@ export const getScreener = async (req, res) => {
       });
     }
   }
+
+export const getScreenerByFilters = async (req, res) => {
+    return res.status(200).json({
+        success: true,
+        data: req.body || null,
+        message: 'Screener fetched successfully.'
+    });
+}
