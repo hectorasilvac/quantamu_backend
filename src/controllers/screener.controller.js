@@ -1,4 +1,4 @@
-import { fetchScreener } from '../services/screener.service.js';
+import { fetchScreener, processDataByFilters } from '../services/screener.service.js';
 
 export const getScreener = async (req, res) => {  
     try {
@@ -18,9 +18,20 @@ export const getScreener = async (req, res) => {
   }
 
 export const getScreenerByFilters = async (req, res) => {
-    return res.status(200).json({
-        success: true,
-        data: req.body || null,
-        message: 'Screener fetched successfully.'
-    });
-}
+    const filters = req.body;
+    try {
+        const result = await processDataByFilters({ filters });
+        res.status(200).json({
+          success: true,
+          data: result,
+          message: 'Screener fetched successfully.'
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          data: null,
+          message: `Screener: Error fetching records. (${error})`
+        });
+      }
+    }
+

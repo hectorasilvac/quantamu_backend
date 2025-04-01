@@ -133,7 +133,7 @@ export const getStratBySymbol = async (req, res) => {
   const { symbol } = req.query;
 
   try {
-    const result = await fetchStratBySymbol({ symbol: symbol.toUpperCase() })
+    const result = await fetchStratBySymbol({ symbol })
     res.status(200).json({
       success: true,
       data: result,

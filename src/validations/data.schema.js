@@ -43,7 +43,7 @@ export const groupedSchema = Joi.object({
 
 export const stratBySymbolSchema = Joi.object({
   symbol: Joi.string()
-    .pattern(/^[A-Za-z]+$/)
+    .pattern(/^[A-Za-z]+(,[A-Za-z]+)*$/)
     .required()
     .messages({
       'string.base': `"symbol" must be a string`,

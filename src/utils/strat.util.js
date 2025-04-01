@@ -29,6 +29,12 @@ const isUnusualInRange = (volume, bulkData, start, end, check) => {
   }
 };
 
+export const getAvgVolume = ({ data }) => {
+  const bulkData = data || [];
+  const avgVolume = bulkData.slice(0, 30).reduce((sum, item) => sum + item.volume, 0) / Math.min(bulkData.length, 30);
+  return avgVolume;
+}
+
 export const getBarType = ({ recentHigh, recentLow, previousHigh, previousLow }) => {
 
   const candlePattern = getCandlePattern({ recentHigh, recentLow, previousHigh, previousLow });
@@ -40,6 +46,11 @@ export const getBarType = ({ recentHigh, recentLow, previousHigh, previousLow })
 
   return candlePattern;
 };
+
+export const getPriceChange = ({ recentPrice, previousPrice }) => {
+  if (!recentPrice || !previousPrice) return 0;
+  return ((recentPrice - previousPrice) / previousPrice) * 100;
+}
 
 export const isInsideActionable = ({ pastWeeklyTrigger, dailyData, key = "high" }) => {
   if (!dailyData?.length) return false;

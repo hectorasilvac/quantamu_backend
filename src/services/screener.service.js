@@ -1,22 +1,86 @@
-import { fetchAggregatedData, addStratData } from './data.service.js'
-import { getBarType } from '../utils/strat.util.js'
+import { fetchAggregatedData } from './data.service.js'
+import { fetchSectors } from './db.service.js'
+import { ANY, UP, DOWN, getBarType, getAvgVolume, getContinuity, getPriceChange, NONE } from '../utils/strat.util.js'
 
 export const fetchScreener = async () => {
-    const data = await fetchAggregatedData({ isSector: 10, limit: 200 })
-    const result = fetchDataByFilters({ arrObjects: data });
-    return result;
+    const getSectorsData = await fetchSectors();
+
+    const data = await fetchAggregatedData({ isSector: 1, limit: 200 })
+    const result = await fetchDataByFilters({ arrObjects: data, sectorName: 'Basic Materials' });
+    return {
+        sectors: getSectorsData,
+        table: result
+    };
+}
+
+export const processDataByFilters = async ({ filters }) => {
+    const {
+    filterAvgVolume,
+    filterContinuityDaily,
+    filterContinuityMonthly,
+    filterContinuityQuaterly,
+    filterContinuityWeekly,
+    filterCurrBarDaily,
+    filterCurrBarMonthly,
+    filterCurrBarQuarterly,
+    filterCurrBarWeekly,
+    filterPrevBarDaily,
+    filterPrevBarMonthly,
+    filterPrevBarQuarterly,
+    filterPrevBarWeekly,
+    filterPrice,
+    filterVolume,
+    sector
+    } = filters;
+
+    const sectorId = sector.split(':')[1];
+    const sectorName = sector.split(':')[0];
+
+    try {
+        const data = await fetchAggregatedData({ isSector: Number(sectorId), limit: 200 })
+        const result = fetchDataByFilters({ 
+            arrObjects: data, 
+            filterAvgVolume, 
+            filterContinuityDaily, 
+            filterContinuityMonthly, 
+            filterContinuityQuaterly, 
+            filterContinuityWeekly, 
+            filterCurrBarDaily, 
+            filterCurrBarMonthly, 
+            filterCurrBarQuarterly, 
+            filterCurrBarWeekly, 
+            filterPrevBarDaily, 
+            filterPrevBarMonthly, 
+            filterPrevBarQuarterly, 
+            filterPrevBarWeekly, 
+            filterPrice, 
+            filterVolume,
+            sectorName 
+        });
+        return result;
+    } catch (error) {
+        throw error;
+    }
 }
 
 export const fetchDataByFilters = ({ 
-    arrObjects, 
-    filterCurrBarDaily, 
-    filterCurrBarWeekly, 
-    filterCurrBarMonthly, 
-    filterCurrBarQuarterly, 
-    filterPrevBarDaily, 
-    filterPrevBarWeekly, 
-    filterPrevBarMonthly, 
-    filterPrevBarQuarterly 
+    arrObjects,
+    sectorName = NONE,
+    filterAvgVolume = ANY,
+    filterContinuityDaily = ANY,
+    filterContinuityMonthly = ANY,
+    filterContinuityQuaterly = ANY,
+    filterContinuityWeekly = ANY,
+    filterCurrBarDaily = ANY,
+    filterCurrBarMonthly = ANY,
+    filterCurrBarQuarterly = ANY,
+    filterCurrBarWeekly = ANY,
+    filterPrevBarDaily = ANY,
+    filterPrevBarMonthly = ANY,
+    filterPrevBarQuarterly = ANY,
+    filterPrevBarWeekly = ANY,
+    filterPrice = ANY,
+    filterVolume = ANY,
 }) => {
     const result = [];
 
@@ -29,117 +93,215 @@ export const fetchDataByFilters = ({
             continue;
         }
 
+        let currBarDaily;
+
         if (filterCurrBarDaily !== ANY) {
-            const CurBarDaily = getBarType({
+            currBarDaily = getBarType({
                 recentHigh: daily[0].high,
                 recentLow: daily[0].low,
                 previousHigh: daily[1].high,
                 previousLow: daily[1].low
             });
 
-            if (CurBarDaily !== filterCurrBarDaily) {
+            if (currBarDaily !== filterCurrBarDaily) {
                 continue;
             }
         }
 
         if (filterCurrBarWeekly !== ANY) {
-            const CurBarWeekly = getBarType({
+            const currBarWeekly = getBarType({
                 recentHigh: weekly[0].high,
                 recentLow: weekly[0].low,
                 previousHigh: weekly[1].high,
                 previousLow: weekly[1].low
             });
 
-            if (CurBarWeekly !== filterCurrBarWeekly) {
+            if (currBarWeekly !== filterCurrBarWeekly) {
                 continue;
             }
         }
 
         if (filterCurrBarMonthly !== ANY) {
-            const CurBarMonthly = getBarType({
+            const currBarMonthly = getBarType({
                 recentHigh: monthly[0].high,
                 recentLow: monthly[0].low,
                 previousHigh: monthly[1].high,
                 previousLow: monthly[1].low
             });
 
-            if (CurBarMonthly !== filterCurrBarMonthly) {
+            if (currBarMonthly !== filterCurrBarMonthly) {
                 continue;
             }
         }
 
         if (filterCurrBarQuarterly !== ANY) {
-            const CurBarQuarterly = getBarType({
+            const currBarQuarterly = getBarType({
                 recentHigh: quarterly[0].high,
                 recentLow: quarterly[0].low,
                 previousHigh: quarterly[1].high,
                 previousLow: quarterly[1].low
             });
 
-            if (CurBarQuarterly !== filterCurrBarQuarterly) {
+            if (currBarQuarterly !== filterCurrBarQuarterly) {
                 continue;
             }
         }
 
         if (filterPrevBarDaily !== ANY) {
-            const PrevBarDaily = getBarType({
+            const prevBarDaily = getBarType({
                 recentHigh: daily[1].high,
                 recentLow: daily[1].low,
                 previousHigh: daily[2].high,
                 previousLow: daily[2].low
             });
 
-            if (PrevBarDaily !== filterPrevBarDaily) {  
+            if (prevBarDaily !== filterPrevBarDaily) {  
                 continue;
             }
         }
 
         if (filterPrevBarWeekly !== ANY) {
-            const PrevBarWeekly = getBarType({
+            const prevBarWeekly = getBarType({
                 recentHigh: weekly[1].high,
                 recentLow: weekly[1].low,
                 previousHigh: weekly[2].high,
                 previousLow: weekly[2].low
         });
 
-            if (PrevBarWeekly !== filterPrevBarWeekly) {
+            if (prevBarWeekly !== filterPrevBarWeekly) {
                 continue;
             }
         }
 
         if (filterPrevBarMonthly !== ANY) {
-            const PrevBarMonthly = getBarType({
+            const prevBarMonthly = getBarType({
                 recentHigh: monthly[1].high,
                 recentLow: monthly[1].low,
                 previousHigh: monthly[2].high,
                 previousLow: monthly[2].low
             });
 
-            if (PrevBarMonthly !== filterPrevBarMonthly) {
+            if (prevBarMonthly !== filterPrevBarMonthly) {
                 continue;
             }
         }
 
         if (filterPrevBarQuarterly !== ANY) {
-            const PrevBarQuarterly = getBarType({
+            const prevBarQuarterly = getBarType({
                 recentHigh: quarterly[1].high,
                 recentLow: quarterly[1].low,
                 previousHigh: quarterly[2].high,
                 previousLow: quarterly[2].low
             });
 
-            if (PrevBarQuarterly !== filterPrevBarQuarterly) {
+            if (prevBarQuarterly !== filterPrevBarQuarterly) {
                 continue;
             }
         }
-        
-        
-        
-        
 
-        // result.push({
-        //     symbol
-        // });
+        if (filterContinuityQuaterly !== ANY) {
+            const continuityQuaterly = getContinuity({
+                tfOpen: quarterly[0].open,
+                tfClose: quarterly[0].close,
+                dailyHigh: daily[0].high,
+            })
+
+            if (continuityQuaterly !== filterContinuityQuaterly) {
+                continue;
+            }
+        }
+
+        if (filterContinuityMonthly !== ANY) {
+            const continuityMonthly = getContinuity({
+                tfOpen: monthly[0].open,
+                tfClose: monthly[0].close,
+                dailyHigh: daily[0].high,
+            })
+
+            if (continuityMonthly !== filterContinuityMonthly) {    
+                continue;
+            }
+        }
+
+        if (filterContinuityWeekly !== ANY) {
+            const continuityWeekly = getContinuity({
+                tfOpen: weekly[0].open,
+                tfClose: weekly[0].close,
+                dailyHigh: daily[0].high,
+            })
+
+            if (continuityWeekly !== filterContinuityWeekly) {
+                continue;
+            }
+        }
+
+        if (filterContinuityDaily !== ANY) {
+            const continuityDaily = getContinuity({
+                tfOpen: daily[0].open,
+                tfClose: daily[0].close,
+                dailyHigh: daily[0].high,
+            })
+
+            if (continuityDaily !== filterContinuityDaily) {
+                continue;
+            }
+        }
+
+        if (filterPrice !== ANY) {
+            const price = daily[0].close;
+
+            if (filterPrice > price) {
+                continue;
+            }
+        }
+
+        if (filterVolume !== ANY) {
+            const volume = daily[0].volume;
+            
+            if (filterVolume > volume) {
+                continue;
+            }
+        }
+
+        if (filterAvgVolume !== ANY) {
+            const avgVolume = getAvgVolume({ data: daily });
+
+            if (filterAvgVolume > avgVolume) {
+                continue;
+            }
+        }
+    
+
+        result.push({
+            filterSymbol: symbol,
+            filterSectorName: sectorName,
+            filterPrice: daily[0].close,
+            filterPriceChange: getPriceChange({ recentPrice: daily[0].close, previousPrice: daily[1].close }),
+            filterVolume: daily[0].volume,
+            filterAvgVolume: getAvgVolume({ data: daily }),
+            filterContinuityDaily: daily[0].close > daily[0].open ? UP : DOWN,
+            filterContinuityWeekly: getContinuity({
+                tfOpen: weekly[0].open,
+                tfClose: weekly[0].close,
+                dailyHigh: daily[0].high,
+                dailyLow: daily[0].low,
+                dailyClose: daily[0].close,
+            }),
+            filterContinuityMonthly: getContinuity({
+                tfOpen: monthly[0].open,
+                tfClose: monthly[0].close,
+                dailyHigh: daily[0].high,
+                dailyLow: daily[0].low,
+                dailyClose: daily[0].close,
+            }),
+            filterContinuityQuarterly: getContinuity({
+                tfOpen: quarterly[0].open,
+                tfClose: quarterly[0].close,
+                dailyHigh: daily[0].high,
+                dailyLow: daily[0].low,
+                dailyClose: daily[0].close,
+            })
+        });
     }
 
     return result;

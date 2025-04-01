@@ -3,6 +3,7 @@ import axios from 'axios'
 import dayjs from 'dayjs'
 
 import {
+  getAvgVolume,
   getCandlePattern,
   getContinuity,
   getPoints,
@@ -131,7 +132,7 @@ export const addStratData = async ({ arrObject }) => {
           })
         ])
 
-        const avgVolume = daily.slice(0, 30).reduce((sum, item) => sum + item.volume, 0) / Math.min(daily.length, 30);
+        const avgVolume = getAvgVolume({ data: daily });
         const weeklyVolume = weekly[0].volume;
         const lastPrice = daily[0].close;
         const percentageChange = ((daily[0].close - daily[1].close) / daily[1].close) * 100;
@@ -579,7 +580,17 @@ export const fetchStratBySector = async ({ symbol }) => {
 };
 
 export const fetchStratBySymbol = async ({ symbol }) => {
-  const aggSectors = await fetchAggregatedData({ symbols: symbol });
+  let symbols = symbol;
+  
+  if (typeof symbol === 'string') {
+    if (symbol.includes(',')) {
+      symbols = symbol.split(',').map(s => s.trim().toUpperCase());
+    } else {
+      symbols = symbol.toUpperCase();
+    }
+  }
+
+  const aggSectors = await fetchAggregatedData({ symbols });
   const stratData = await addStratData({ arrObject: aggSectors });
 
   return stratData;
