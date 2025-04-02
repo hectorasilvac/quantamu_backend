@@ -6,6 +6,8 @@ import { initializeDB } from './config/database.js';
 import dataRoutes from './routes/data.route.js';
 import dbRoutes from './routes/db.route.js';
 import screenerRoutes from './routes/screener.route.js';
+import sectorRoutes from './routes/sector.route.js';
+
 dotenv.config()
 
 const app = express();
@@ -20,6 +22,7 @@ app.get("/", (req, res) => {
 app.use('/data', dataRoutes);
 app.use('/db', dbRoutes);
 app.use('/screener', screenerRoutes);
+app.use('/sector', sectorRoutes);
 
 initializeDB().then(() => {
   const PORT = process.env.PORT || 3000;

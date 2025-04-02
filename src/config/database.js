@@ -10,7 +10,8 @@ const initializeDB = async () => {
     await sql`
     CREATE TABLE IF NOT EXISTS sector (
       id SERIAL PRIMARY KEY,
-      name VARCHAR(50) NOT NULL UNIQUE
+      name VARCHAR(50) NOT NULL UNIQUE,
+      id_future INTEGER REFERENCES instrument(id)
     )
   `;
 
