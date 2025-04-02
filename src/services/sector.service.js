@@ -47,7 +47,22 @@ export const fetchMarketSectors = async () => {
             })
         );
 
-        return result;
+        // Definir el orden personalizado de los símbolos
+        const symbolOrder = ['/NQ', '/YM', '/RTY', '/OTH', '/BTC', '/CL', '/ES'];
+        
+        // Ordenar el resultado según el orden definido
+        const sortedResult = result.sort((a, b) => {
+            const indexA = symbolOrder.indexOf(a.symbol);
+            const indexB = symbolOrder.indexOf(b.symbol);
+            
+            // Si algún símbolo no está en la lista, ponerlo al final
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            
+            return indexA - indexB;
+        });
+
+        return sortedResult;
     } catch (error) {
         throw error;
     }
