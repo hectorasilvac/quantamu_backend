@@ -1,6 +1,6 @@
 import { fetchAggregatedData } from './data.service.js'
 import { fetchSectors } from './db.service.js'
-import { ANY, UP, DOWN, getBarType, getAvgVolume, getContinuity, getPriceChange, NONE, getStratResult } from '../utils/strat.util.js'
+import { ANY, UP, DOWN, NONE, EXCEPT_INSIDE, INSIDE, getBarType, getAvgVolume, getContinuity, getScenario, getStratResult, isVolumeValid, isPriceValid, isScenarioValid } from '../utils/strat.util.js'
 
 export const fetchScreener = async () => {
     const getSectorsData = await fetchSectors();
@@ -66,7 +66,6 @@ export const processDataByFilters = async ({ filters }) => {
 export const fetchDataByFilters = ({
     arrObjects,
     sectorName = NONE,
-    filterAvgVolume = ANY,
     filterContinuityDaily = ANY,
     filterContinuityMonthly = ANY,
     filterContinuityQuaterly = ANY,
@@ -80,6 +79,7 @@ export const fetchDataByFilters = ({
     filterPrevBarQuarterly = ANY,
     filterPrevBarWeekly = ANY,
     filterPrice = ANY,
+    filterAvgVolume = ANY,
     filterVolume = ANY,
 }) => {
     const result = [];
@@ -93,6 +93,7 @@ export const fetchDataByFilters = ({
             continue;
         }
 
+
         if (filterCurrBarDaily !== ANY) {
             const currBarDaily = getBarType({
                 recentHigh: daily[0].high,
@@ -101,7 +102,9 @@ export const fetchDataByFilters = ({
                 previousLow: daily[1].low
             });
 
-            if (currBarDaily !== filterCurrBarDaily) {
+            const isValid = isScenarioValid({ filterScenario: filterCurrBarDaily, scenario: currBarDaily });
+
+            if (!isValid) {
                 continue;
             }
         }
@@ -114,7 +117,9 @@ export const fetchDataByFilters = ({
                 previousLow: weekly[1].low
             });
 
-            if (currBarWeekly !== filterCurrBarWeekly) {
+            const isValid = isScenarioValid({ filterScenario: filterCurrBarWeekly, scenario: currBarWeekly });
+
+            if (!isValid) {
                 continue;
             }
         }
@@ -127,7 +132,9 @@ export const fetchDataByFilters = ({
                 previousLow: monthly[1].low
             });
 
-            if (currBarMonthly !== filterCurrBarMonthly) {
+            const isValid = isScenarioValid({ filterScenario: filterCurrBarMonthly, scenario: currBarMonthly });
+
+            if (!isValid) {
                 continue;
             }
         }
@@ -140,7 +147,9 @@ export const fetchDataByFilters = ({
                 previousLow: quarterly[1].low
             });
 
-            if (currBarQuarterly !== filterCurrBarQuarterly) {
+            const isValid = isScenarioValid({ filterScenario: filterCurrBarQuarterly, scenario: currBarQuarterly });
+
+            if (!isValid) {
                 continue;
             }
         }
@@ -153,7 +162,9 @@ export const fetchDataByFilters = ({
                 previousLow: daily[2].low
             });
 
-            if (prevBarDaily !== filterPrevBarDaily) {
+            const isValid = isScenarioValid({ filterScenario: filterPrevBarDaily, scenario: prevBarDaily });
+
+            if (!isValid) {
                 continue;
             }
         }
@@ -166,7 +177,9 @@ export const fetchDataByFilters = ({
                 previousLow: weekly[2].low
             });
 
-            if (prevBarWeekly !== filterPrevBarWeekly) {
+            const isValid = isScenarioValid({ filterScenario: filterPrevBarWeekly, scenario: prevBarWeekly });
+
+            if (!isValid) {
                 continue;
             }
         }
@@ -179,7 +192,9 @@ export const fetchDataByFilters = ({
                 previousLow: monthly[2].low
             });
 
-            if (prevBarMonthly !== filterPrevBarMonthly) {
+            const isValid = isScenarioValid({ filterScenario: filterPrevBarMonthly, scenario: prevBarMonthly });
+
+            if (!isValid) {
                 continue;
             }
         }
@@ -192,16 +207,28 @@ export const fetchDataByFilters = ({
                 previousLow: quarterly[2].low
             });
 
-            if (prevBarQuarterly !== filterPrevBarQuarterly) {
+            const isValid = isScenarioValid({ filterScenario: filterPrevBarQuarterly, scenario: prevBarQuarterly });
+
+            if (!isValid) {
                 continue;
             }
         }
+
+        const dailyScenario = getScenario({
+            recentHigh: daily[0].high,
+            recentLow: daily[0].low,
+            previousHigh: daily[1].high,
+            previousLow: daily[1].low
+        });
 
         if (filterContinuityQuaterly !== ANY) {
             const continuityQuaterly = getContinuity({
                 tfOpen: quarterly[0].open,
                 tfClose: quarterly[0].close,
-                dailyHigh: daily[0].high,
+            dailyHigh: daily[0].high,
+            dailyLow: daily[0].low,
+            dailyClose: daily[0].close,
+            dailyScenario
             })
 
             if (continuityQuaterly !== filterContinuityQuaterly) {
@@ -214,6 +241,9 @@ export const fetchDataByFilters = ({
                 tfOpen: monthly[0].open,
                 tfClose: monthly[0].close,
                 dailyHigh: daily[0].high,
+                dailyLow: daily[0].low,
+                dailyClose: daily[0].close,
+                dailyScenario,
             })
 
             if (continuityMonthly !== filterContinuityMonthly) {
@@ -226,6 +256,9 @@ export const fetchDataByFilters = ({
                 tfOpen: weekly[0].open,
                 tfClose: weekly[0].close,
                 dailyHigh: daily[0].high,
+                dailyLow: daily[0].low,
+                dailyClose: daily[0].close,
+                dailyScenario
             })
 
             if (continuityWeekly !== filterContinuityWeekly) {
@@ -234,11 +267,7 @@ export const fetchDataByFilters = ({
         }
 
         if (filterContinuityDaily !== ANY) {
-            const continuityDaily = getContinuity({
-                tfOpen: daily[0].open,
-                tfClose: daily[0].close,
-                dailyHigh: daily[0].high,
-            })
+            const continuityDaily = daily[0].close > daily[0].open ? UP : DOWN;
 
             if (continuityDaily !== filterContinuityDaily) {
                 continue;
@@ -247,28 +276,30 @@ export const fetchDataByFilters = ({
 
         if (filterPrice !== ANY) {
             const price = daily[0].close;
+            const isValid = isPriceValid({ filterPrice, price });
 
-            if (filterPrice > price) {
+            if (!isValid) {
                 continue;
             }
         }
 
         if (filterVolume !== ANY) {
             const volume = daily[0].volume;
+            const isValid = isVolumeValid({ filterVolume, volume });
 
-            if (filterVolume > volume) {
+            if (!isValid) {
                 continue;
             }
         }
 
         if (filterAvgVolume !== ANY) {
             const avgVolume = getAvgVolume({ data: daily });
+            const isValid = isVolumeValid({ filterVolume: filterAvgVolume, volume: avgVolume });
 
-            if (filterAvgVolume > avgVolume) {
+            if (!isValid) {
                 continue;
             }
         }
-
 
         result.push({
             ...getStratResult({ symbol, daily, weekly, monthly, quarterly }),

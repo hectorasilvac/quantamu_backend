@@ -8,6 +8,10 @@ export const SHOOTER = 'shooter'
 export const HAMMER = 'hammer'
 export const TRUE_VALUE = 'true'
 export const FALSE_VALUE = 'false'
+export const EXCEPT_INSIDE = "except_inside"
+export const UP_INSIDE = "up_inside"
+export const DOWN_INSIDE = "down_inside"
+
 
 const isValidNumber = (value) => typeof value === 'number' && !isNaN(value);
 
@@ -60,24 +64,23 @@ export const isInsideActionable = ({ pastWeeklyTrigger, dailyData, key = "high" 
   let triggerFound = false;
 
   for (let i = 1; i < dailyData.length; i++) {
-      const currentLevel = dailyData[i][key];
+    const currentLevel = dailyData[i][key];
 
-      if (currentLevel === pastWeeklyTrigger) {
-          triggerFound = true;
-          break;
-      }
+    if (currentLevel === pastWeeklyTrigger) {
+      triggerFound = true;
+      break;
+    }
 
-      if (currentLevel > referenceLevel) {
-          breakoutCount++;
-          referenceLevel = currentLevel;
-      }
+    if (currentLevel > referenceLevel) {
+      breakoutCount++;
+      referenceLevel = currentLevel;
+    }
 
-      if (breakoutCount > 1) return false;
+    if (breakoutCount > 1) return false;
   }
 
   return triggerFound && breakoutCount <= 1;
 };
-
 
 export const getScenario = ({ recentHigh, recentLow, previousHigh, previousLow }) => {
   if (
@@ -240,130 +243,229 @@ export const getStratResult = ({ symbol, daily, weekly, monthly, quarterly }) =>
   const weeklyVolume = weekly[0].volume;
   const avgVolume = getAvgVolume({ data: daily });
   const unusualVolume = getUnusualVolume(daily);
-  const dailyContinuity = daily[0].close > daily[0].open ? UP : DOWN;
-  const weeklyContinuity = getContinuity({
-      tfOpen: weekly[0].open,
-      tfClose: weekly[0].close,
-      dailyHigh: daily[0].high,
-      dailyLow: daily[0].low,
-      dailyClose: daily[0].close,
-  });
-  const monthlyContinuity = getContinuity({
-      tfOpen: monthly[0].open,
-      tfClose: monthly[0].close,
-      dailyHigh: daily[0].high,
-      dailyLow: daily[0].low,
-      dailyClose: daily[0].close,
-  });
-  const quarterlyContinuity = getContinuity({
-      tfOpen: quarterly[0].open,
-      tfClose: quarterly[0].close,
-      dailyHigh: daily[0].high,
-      dailyLow: daily[0].low,
-      dailyClose: daily[0].close,
-  });
   const dailyScenario = getScenario({
-      recentHigh: daily[0].high,
-      recentLow: daily[0].low,
-      previousHigh: daily[1].high,
-      previousLow: daily[1].low
+    recentHigh: daily[0].high,
+    recentLow: daily[0].low,
+    previousHigh: daily[1].high,
+    previousLow: daily[1].low
   });
   const weeklyScenario = getScenario({
-      recentHigh: weekly[0].high,
-      recentLow: weekly[0].low,
-      previousHigh: weekly[1].high,
-      previousLow: weekly[1].low
+    recentHigh: weekly[0].high,
+    recentLow: weekly[0].low,
+    previousHigh: weekly[1].high,
+    previousLow: weekly[1].low
   });
   const monthlyScenario = getScenario({
-      recentHigh: monthly[0].high,
-      recentLow: monthly[0].low,
-      previousHigh: monthly[1].high,
-      previousLow: monthly[1].low
+    recentHigh: monthly[0].high,
+    recentLow: monthly[0].low,
+    previousHigh: monthly[1].high,
+    previousLow: monthly[1].low
   });
   const quarterlyScenario = getScenario({
-      recentHigh: quarterly[0].high,
-      recentLow: quarterly[0].low,
-      previousHigh: quarterly[1].high,
-      previousLow: quarterly[1].low
+    recentHigh: quarterly[0].high,
+    recentLow: quarterly[0].low,
+    previousHigh: quarterly[1].high,
+    previousLow: quarterly[1].low
   });
   const dailyPattern = getCandlePattern({
-      open: daily[0].open,
-      high: daily[0].high,
-      low: daily[0].low,
-      close: daily[0].close
+    open: daily[0].open,
+    high: daily[0].high,
+    low: daily[0].low,
+    close: daily[0].close
   });
   const weeklyPattern = getCandlePattern({
-      open: weekly[0].open,
-      high: weekly[0].high,
-      low: weekly[0].low,
-      close: weekly[0].close
+    open: weekly[0].open,
+    high: weekly[0].high,
+    low: weekly[0].low,
+    close: weekly[0].close
   });
   const monthlyPattern = getCandlePattern({
-      open: monthly[0].open,
-      high: monthly[0].high,
-      low: monthly[0].low,
-      close: monthly[0].close
+    open: monthly[0].open,
+    high: monthly[0].high,
+    low: monthly[0].low,
+    close: monthly[0].close
   });
   const quarterlyPattern = getCandlePattern({
-      open: quarterly[0].open,
-      high: quarterly[0].high,
-      low: quarterly[0].low,
-      close: quarterly[0].close
+    open: quarterly[0].open,
+    high: quarterly[0].high,
+    low: quarterly[0].low,
+    close: quarterly[0].close
+  });
+  const dailyContinuity = daily[0].close > daily[0].open ? UP : DOWN;
+  const weeklyContinuity = getContinuity({
+    tfOpen: weekly[0].open,
+    tfClose: weekly[0].close,
+    dailyHigh: daily[0].high,
+    dailyLow: daily[0].low,
+    dailyClose: daily[0].close,
+    dailyScenario,
+  });
+  const monthlyContinuity = getContinuity({
+    tfOpen: monthly[0].open,
+    tfClose: monthly[0].close,
+    dailyHigh: daily[0].high,
+    dailyLow: daily[0].low,
+    dailyClose: daily[0].close,
+    dailyScenario,
+  });
+  const quarterlyContinuity = getContinuity({
+    tfOpen: quarterly[0].open,
+    tfClose: quarterly[0].close,
+    dailyHigh: daily[0].high,
+    dailyLow: daily[0].low,
+    dailyClose: daily[0].close,
+    dailyScenario,
   });
   const potentialEntry = getPotentialEntry({
-      weeklyData: weekly,
-      dailyData: daily,
-      avgVolume,
-      weeklyContinuity,
-      monthlyContinuity,
-      quarterlyContinuity,
-      dailyScenario,
-      weeklyScenario,
-      monthlyScenario,
-      quarterlyScenario,
-      dailyPattern,
+    weeklyData: weekly,
+    dailyData: daily,
+    avgVolume,
+    weeklyContinuity,
+    monthlyContinuity,
+    quarterlyContinuity,
+    dailyScenario,
+    weeklyScenario,
+    monthlyScenario,
+    quarterlyScenario,
+    dailyPattern,
   });
   const points = getPoints({
-      weeklyScenario,
-      monthlyScenario,
-      quarterlyScenario,
-      weeklyContinuity,
-      monthlyContinuity,
-      quarterlyContinuity,
-      dailyPattern,
-      weeklyPattern,
-      monthlyPattern,
-      quarterlyPattern,
-      unusualVolume,
-      potentialEntry,
-      weeklyVolume,
-      avgVolume,
+    weeklyScenario,
+    monthlyScenario,
+    quarterlyScenario,
+    weeklyContinuity,
+    monthlyContinuity,
+    quarterlyContinuity,
+    dailyPattern,
+    weeklyPattern,
+    monthlyPattern,
+    quarterlyPattern,
+    unusualVolume,
+    potentialEntry,
+    weeklyVolume,
+    avgVolume,
   });
 
   return {
-      symbol,
-      lastPrice,
-      percentageChange,
-      volume,
-      unusualVolume,
-      avgVolume,
-      dailyContinuity,
-      weeklyContinuity,
-      monthlyContinuity,
-      quarterlyContinuity,
-      dailyScenario,
-      weeklyScenario,
-      monthlyScenario,
-      quarterlyScenario,
-      dailyPattern,
-      weeklyPattern,
-      monthlyPattern,
-      quarterlyPattern,
-      weeklyVolume,
-      lastDay,
-      potentialEntry,
-      points,
+    symbol,
+    lastPrice,
+    percentageChange,
+    volume,
+    unusualVolume,
+    avgVolume,
+    dailyContinuity,
+    weeklyContinuity,
+    monthlyContinuity,
+    quarterlyContinuity,
+    dailyScenario,
+    weeklyScenario,
+    monthlyScenario,
+    quarterlyScenario,
+    dailyPattern,
+    weeklyPattern,
+    monthlyPattern,
+    quarterlyPattern,
+    weeklyVolume,
+    lastDay,
+    potentialEntry,
+    points,
   };
+}
+
+// Filters
+export const isVolumeValid = ({ filterVolume, volume }) => {
+
+  if (filterVolume === 'under_500k' && volume > 500000) {
+    return false;
+  }
+  if (filterVolume === 'under_1m' && volume > 1000000) {
+    return false;
+  }
+  if (filterVolume === 'under_3m' && volume > 3000000) {
+    return false;
+  }
+
+  if (filterVolume === 'under_5m' && volume > 5000000) {
+    return false;
+  }
+  if (filterVolume === 'over_500k' && volume < 500000) {
+    return false;
+  }
+
+  if (filterVolume === 'over_1m' && volume < 1000000) {
+    return false;
+  }
+
+  if (filterVolume === 'over_3m' && volume < 3000000) {
+    return false;
+  }
+
+  if (filterVolume === 'over_5m' && volume < 5000000) {
+    return false;
+  }
+
+  return true;
+}
+
+export const isPriceValid = ({ filterPrice, price }) => {
+
+  if (filterPrice === 'under_10' && price > 10) {
+    return false;
+  }
+
+  if (filterPrice === 'under_50' && price > 50) {
+    return false;
+  }
+
+  if (filterPrice === 'under_100' && price > 100) {
+    return false;
+  }
+
+  if (filterPrice === 'under_500' && price > 500) {
+    return false;
+  }
+
+  if (filterPrice === 'over_10' && price < 10) {
+    return false;
+  }
+
+  if (filterPrice === 'over_50' && price < 50) {
+    return false;
+  }
+
+  if (filterPrice === 'over_100' && price < 100) {
+    return false;
+  }
+
+  if (filterPrice === 'over_500' && price < 500) {
+    return false;
+  }
+
+  return true;
+}
+
+export const isScenarioValid = ({ filterScenario, scenario }) => {
+
+  const specialCases = [EXCEPT_INSIDE, UP_INSIDE, DOWN_INSIDE]
+
+  if (filterScenario === EXCEPT_INSIDE && scenario === INSIDE) {
+    return false;
+  }
+
+  if (filterScenario === UP_INSIDE && (scenario === DOWN || scenario === OUTSIDE)) {
+    return false;
+  }
+
+  if (filterScenario === DOWN_INSIDE && (scenario === UP || scenario === OUTSIDE)) {
+    return false;
+  }
+
+  if (filterScenario !== scenario && !specialCases.includes(filterScenario)) {
+    return false
+  }
+
+  return true;
+
 }
 
 // TODO: Idea agregar la opcion de exportar la watchlist para agregarla a TradingView y Permitir compartir la watchlist con otros
