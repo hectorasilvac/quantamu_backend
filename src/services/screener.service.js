@@ -1,6 +1,6 @@
 import { fetchAggregatedData } from './data.service.js'
 import { fetchSectors } from './db.service.js'
-import { ANY, UP, DOWN, getBarType, getAvgVolume, getContinuity, getPriceChange, NONE } from '../utils/strat.util.js'
+import { ANY, UP, DOWN, getBarType, getAvgVolume, getContinuity, getPriceChange, NONE, getStratResult } from '../utils/strat.util.js'
 
 export const fetchScreener = async () => {
     const getSectorsData = await fetchSectors();
@@ -15,22 +15,22 @@ export const fetchScreener = async () => {
 
 export const processDataByFilters = async ({ filters }) => {
     const {
-    filterAvgVolume,
-    filterContinuityDaily,
-    filterContinuityMonthly,
-    filterContinuityQuaterly,
-    filterContinuityWeekly,
-    filterCurrBarDaily,
-    filterCurrBarMonthly,
-    filterCurrBarQuarterly,
-    filterCurrBarWeekly,
-    filterPrevBarDaily,
-    filterPrevBarMonthly,
-    filterPrevBarQuarterly,
-    filterPrevBarWeekly,
-    filterPrice,
-    filterVolume,
-    sector
+        filterAvgVolume,
+        filterContinuityDaily,
+        filterContinuityMonthly,
+        filterContinuityQuaterly,
+        filterContinuityWeekly,
+        filterCurrBarDaily,
+        filterCurrBarMonthly,
+        filterCurrBarQuarterly,
+        filterCurrBarWeekly,
+        filterPrevBarDaily,
+        filterPrevBarMonthly,
+        filterPrevBarQuarterly,
+        filterPrevBarWeekly,
+        filterPrice,
+        filterVolume,
+        sector
     } = filters;
 
     const sectorId = sector.split(':')[1];
@@ -38,24 +38,24 @@ export const processDataByFilters = async ({ filters }) => {
 
     try {
         const data = await fetchAggregatedData({ isSector: Number(sectorId), limit: 200 })
-        const result = fetchDataByFilters({ 
-            arrObjects: data, 
-            filterAvgVolume, 
-            filterContinuityDaily, 
-            filterContinuityMonthly, 
-            filterContinuityQuaterly, 
-            filterContinuityWeekly, 
-            filterCurrBarDaily, 
-            filterCurrBarMonthly, 
-            filterCurrBarQuarterly, 
-            filterCurrBarWeekly, 
-            filterPrevBarDaily, 
-            filterPrevBarMonthly, 
-            filterPrevBarQuarterly, 
-            filterPrevBarWeekly, 
-            filterPrice, 
+        const result = fetchDataByFilters({
+            arrObjects: data,
+            filterAvgVolume,
+            filterContinuityDaily,
+            filterContinuityMonthly,
+            filterContinuityQuaterly,
+            filterContinuityWeekly,
+            filterCurrBarDaily,
+            filterCurrBarMonthly,
+            filterCurrBarQuarterly,
+            filterCurrBarWeekly,
+            filterPrevBarDaily,
+            filterPrevBarMonthly,
+            filterPrevBarQuarterly,
+            filterPrevBarWeekly,
+            filterPrice,
             filterVolume,
-            sectorName 
+            sectorName
         });
         return result;
     } catch (error) {
@@ -63,7 +63,7 @@ export const processDataByFilters = async ({ filters }) => {
     }
 }
 
-export const fetchDataByFilters = ({ 
+export const fetchDataByFilters = ({
     arrObjects,
     sectorName = NONE,
     filterAvgVolume = ANY,
@@ -93,10 +93,8 @@ export const fetchDataByFilters = ({
             continue;
         }
 
-        let currBarDaily;
-
         if (filterCurrBarDaily !== ANY) {
-            currBarDaily = getBarType({
+            const currBarDaily = getBarType({
                 recentHigh: daily[0].high,
                 recentLow: daily[0].low,
                 previousHigh: daily[1].high,
@@ -155,7 +153,7 @@ export const fetchDataByFilters = ({
                 previousLow: daily[2].low
             });
 
-            if (prevBarDaily !== filterPrevBarDaily) {  
+            if (prevBarDaily !== filterPrevBarDaily) {
                 continue;
             }
         }
@@ -166,7 +164,7 @@ export const fetchDataByFilters = ({
                 recentLow: weekly[1].low,
                 previousHigh: weekly[2].high,
                 previousLow: weekly[2].low
-        });
+            });
 
             if (prevBarWeekly !== filterPrevBarWeekly) {
                 continue;
@@ -218,7 +216,7 @@ export const fetchDataByFilters = ({
                 dailyHigh: daily[0].high,
             })
 
-            if (continuityMonthly !== filterContinuityMonthly) {    
+            if (continuityMonthly !== filterContinuityMonthly) {
                 continue;
             }
         }
@@ -257,7 +255,7 @@ export const fetchDataByFilters = ({
 
         if (filterVolume !== ANY) {
             const volume = daily[0].volume;
-            
+
             if (filterVolume > volume) {
                 continue;
             }
@@ -270,203 +268,13 @@ export const fetchDataByFilters = ({
                 continue;
             }
         }
-    
+
 
         result.push({
-            filterSymbol: symbol,
-            filterSectorName: sectorName,
-            filterPrice: daily[0].close,
-            filterPriceChange: getPriceChange({ recentPrice: daily[0].close, previousPrice: daily[1].close }),
-            filterVolume: daily[0].volume,
-            filterAvgVolume: getAvgVolume({ data: daily }),
-            filterContinuityDaily: daily[0].close > daily[0].open ? UP : DOWN,
-            filterContinuityWeekly: getContinuity({
-                tfOpen: weekly[0].open,
-                tfClose: weekly[0].close,
-                dailyHigh: daily[0].high,
-                dailyLow: daily[0].low,
-                dailyClose: daily[0].close,
-            }),
-            filterContinuityMonthly: getContinuity({
-                tfOpen: monthly[0].open,
-                tfClose: monthly[0].close,
-                dailyHigh: daily[0].high,
-                dailyLow: daily[0].low,
-                dailyClose: daily[0].close,
-            }),
-            filterContinuityQuarterly: getContinuity({
-                tfOpen: quarterly[0].open,
-                tfClose: quarterly[0].close,
-                dailyHigh: daily[0].high,
-                dailyLow: daily[0].low,
-                dailyClose: daily[0].close,
-            })
+            ...getStratResult({ symbol, daily, weekly, monthly, quarterly }),
+            sectorName,
         });
     }
 
     return result;
 }
-
-// export const addStratData = async ({ arrObject }) => {
-//     return (await Promise.all(
-//       arrObject.map(async ({ symbol, daily, weekly, monthly, quarterly }) => {
-//         if (!daily?.[1] || !weekly?.[1] || !monthly?.[1] || !quarterly?.[1]) {
-//           return null;
-//         }
-  
-//         const [
-//           dailyScenario,
-//           weeklyScenario,
-//           monthlyScenario,
-//           quarterlyScenario,
-//           dailyPattern,
-//           weeklyPattern,
-//           monthlyPattern,
-//           quarterlyPattern,
-//           unusualVolume
-//         ] = await Promise.all([
-//           getBarType({
-//             recentHigh: daily[0].high,
-//             recentLow: daily[0].low,
-//             previousHigh: daily[1].high,
-//             previousLow: daily[1].low
-//           }),
-//           getBarType({
-//             recentHigh: weekly[0].high,
-//             recentLow: weekly[0].low,
-//             previousHigh: weekly[1].high,
-//             previousLow: weekly[1].low
-//           }),
-//           getBarType({
-//             recentHigh: monthly[0].high,
-//             recentLow: monthly[0].low,
-//             previousHigh: monthly[1].high,
-//             previousLow: monthly[1].low
-//           }),
-//           getBarType({
-//             recentHigh: quarterly[0].high,
-//             recentLow: quarterly[0].low,
-//             previousHigh: quarterly[1].high,
-//             previousLow: quarterly[1].low
-//           }),
-//           getCandlePattern({
-//             open: daily[0].open,
-//             high: daily[0].high,
-//             low: daily[0].low,
-//             close: daily[0].close
-//           }),
-//           getCandlePattern({
-//             open: weekly[0].open,
-//             high: weekly[0].high,
-//             low: weekly[0].low,
-//             close: weekly[0].close
-//           }),
-//           getCandlePattern({
-//             open: monthly[0].open,
-//             high: monthly[0].high,
-//             low: monthly[0].low,
-//             close: monthly[0].close
-//           }),
-//           getCandlePattern({
-//             open: quarterly[0].open,
-//             high: quarterly[0].high,
-//             low: quarterly[0].low,
-//             close: quarterly[0].close
-//           }),
-//           getUnusualVolume(daily)
-//         ])
-  
-//         const [weeklyContinuity, monthlyContinuity, quarterlyContinuity] =
-//           await Promise.all([
-//             getContinuity({
-//               tfOpen: weekly[0].open,
-//               tfClose: weekly[0].close,
-//               dailyHigh: daily[0].high,
-//               dailyLow: daily[0].low,
-//               dailyClose: daily[0].close,
-//               dailyScenario
-//             }),
-//             getContinuity({
-//               tfOpen: monthly[0].open,
-//               tfClose: monthly[0].close,
-//               dailyHigh: daily[0].high,
-//               dailyLow: daily[0].low,
-//               dailyClose: daily[0].close,
-//               dailyScenario
-//             }),
-//             getContinuity({
-//               tfOpen: quarterly[0].open,
-//               tfClose: quarterly[0].close,
-//               dailyHigh: daily[0].high,
-//               dailyLow: daily[0].low,
-//               dailyClose: daily[0].close,
-//               dailyScenario
-//             })
-//           ])
-  
-//           const avgVolume = daily.slice(0, 30).reduce((sum, item) => sum + item.volume, 0) / Math.min(daily.length, 30);
-//           const weeklyVolume = weekly[0].volume;
-//           const lastPrice = daily[0].close;
-//           const percentageChange = ((daily[0].close - daily[1].close) / daily[1].close) * 100;
-//           const priceChange = Math.abs(daily[0].close - daily[1].close);
-//           const lastDay = daily[0].date;
-  
-//         const [potentialEntry] = await Promise.all([
-//           getPotentialEntry({
-//             weeklyData: weekly,
-//             dailyData: daily,
-//             avgVolume,
-//             weeklyContinuity,
-//             monthlyContinuity,
-//             quarterlyContinuity,
-//             dailyScenario,
-//             weeklyScenario,
-//             monthlyScenario,
-//             quarterlyScenario,
-//             dailyPattern,
-//           })
-//         ])
-  
-//         const points = getPoints({
-//           weeklyScenario,
-//           monthlyScenario,
-//           quarterlyScenario,
-//           weeklyContinuity,
-//           monthlyContinuity,
-//           quarterlyContinuity,
-//           dailyPattern,
-//           weeklyPattern,
-//           monthlyPattern,
-//           quarterlyPattern,
-//           unusualVolume,
-//           potentialEntry,
-//           weeklyVolume,
-//           avgVolume,
-//         });
-  
-//         return {
-//           symbol,
-//           dailyScenario,
-//           weeklyScenario,
-//           monthlyScenario,
-//           quarterlyScenario,
-//           weeklyContinuity,
-//           monthlyContinuity,
-//           quarterlyContinuity,
-//           dailyPattern,
-//           weeklyPattern,
-//           monthlyPattern,
-//           quarterlyPattern,
-//           unusualVolume,
-//           potentialEntry,
-//           avgVolume,
-//           weeklyVolume,
-//           lastPrice,
-//           percentageChange,
-//           priceChange,
-//           lastDay,
-//           points,
-//         }
-//       })
-//     )).filter(Boolean);
-//   }

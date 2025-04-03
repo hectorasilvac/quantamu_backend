@@ -231,6 +231,141 @@ export const getPotentialEntry = ({
   return NONE;
 };
 
+export const getStratResult = ({ symbol, daily, weekly, monthly, quarterly }) => {
+
+  const lastDay = daily[0].date;
+  const lastPrice = daily[0].close;
+  const percentageChange = getPriceChange({ recentPrice: daily[0].close, previousPrice: daily[1].close });
+  const volume = daily[0].volume;
+  const weeklyVolume = weekly[0].volume;
+  const avgVolume = getAvgVolume({ data: daily });
+  const unusualVolume = getUnusualVolume(daily);
+  const dailyContinuity = daily[0].close > daily[0].open ? UP : DOWN;
+  const weeklyContinuity = getContinuity({
+      tfOpen: weekly[0].open,
+      tfClose: weekly[0].close,
+      dailyHigh: daily[0].high,
+      dailyLow: daily[0].low,
+      dailyClose: daily[0].close,
+  });
+  const monthlyContinuity = getContinuity({
+      tfOpen: monthly[0].open,
+      tfClose: monthly[0].close,
+      dailyHigh: daily[0].high,
+      dailyLow: daily[0].low,
+      dailyClose: daily[0].close,
+  });
+  const quarterlyContinuity = getContinuity({
+      tfOpen: quarterly[0].open,
+      tfClose: quarterly[0].close,
+      dailyHigh: daily[0].high,
+      dailyLow: daily[0].low,
+      dailyClose: daily[0].close,
+  });
+  const dailyScenario = getScenario({
+      recentHigh: daily[0].high,
+      recentLow: daily[0].low,
+      previousHigh: daily[1].high,
+      previousLow: daily[1].low
+  });
+  const weeklyScenario = getScenario({
+      recentHigh: weekly[0].high,
+      recentLow: weekly[0].low,
+      previousHigh: weekly[1].high,
+      previousLow: weekly[1].low
+  });
+  const monthlyScenario = getScenario({
+      recentHigh: monthly[0].high,
+      recentLow: monthly[0].low,
+      previousHigh: monthly[1].high,
+      previousLow: monthly[1].low
+  });
+  const quarterlyScenario = getScenario({
+      recentHigh: quarterly[0].high,
+      recentLow: quarterly[0].low,
+      previousHigh: quarterly[1].high,
+      previousLow: quarterly[1].low
+  });
+  const dailyPattern = getCandlePattern({
+      open: daily[0].open,
+      high: daily[0].high,
+      low: daily[0].low,
+      close: daily[0].close
+  });
+  const weeklyPattern = getCandlePattern({
+      open: weekly[0].open,
+      high: weekly[0].high,
+      low: weekly[0].low,
+      close: weekly[0].close
+  });
+  const monthlyPattern = getCandlePattern({
+      open: monthly[0].open,
+      high: monthly[0].high,
+      low: monthly[0].low,
+      close: monthly[0].close
+  });
+  const quarterlyPattern = getCandlePattern({
+      open: quarterly[0].open,
+      high: quarterly[0].high,
+      low: quarterly[0].low,
+      close: quarterly[0].close
+  });
+  const potentialEntry = getPotentialEntry({
+      weeklyData: weekly,
+      dailyData: daily,
+      avgVolume,
+      weeklyContinuity,
+      monthlyContinuity,
+      quarterlyContinuity,
+      dailyScenario,
+      weeklyScenario,
+      monthlyScenario,
+      quarterlyScenario,
+      dailyPattern,
+  });
+  const points = getPoints({
+      weeklyScenario,
+      monthlyScenario,
+      quarterlyScenario,
+      weeklyContinuity,
+      monthlyContinuity,
+      quarterlyContinuity,
+      dailyPattern,
+      weeklyPattern,
+      monthlyPattern,
+      quarterlyPattern,
+      unusualVolume,
+      potentialEntry,
+      weeklyVolume,
+      avgVolume,
+  });
+
+  return {
+      symbol,
+      lastPrice,
+      percentageChange,
+      volume,
+      unusualVolume,
+      avgVolume,
+      dailyContinuity,
+      weeklyContinuity,
+      monthlyContinuity,
+      quarterlyContinuity,
+      dailyScenario,
+      weeklyScenario,
+      monthlyScenario,
+      quarterlyScenario,
+      dailyPattern,
+      weeklyPattern,
+      monthlyPattern,
+      quarterlyPattern,
+      weeklyVolume,
+      lastDay,
+      potentialEntry,
+      points,
+  };
+}
+
 // TODO: Idea agregar la opcion de exportar la watchlist para agregarla a TradingView y Permitir compartir la watchlist con otros
 // TODO: Ocultar sectores que no tengan stocks relacionados del menu de Sectors
 // TODO: Eliminar librerias no utilizadas tanto en frontend como en backend

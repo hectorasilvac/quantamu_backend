@@ -607,7 +607,7 @@ export const fetchSectorsPerformance = async () => {
           ROW_NUMBER() OVER (PARTITION BY i.id ORDER BY o.date DESC) AS rn
         FROM instrument i
         JOIN ohlc o ON o.id_instrument = i.id
-        WHERE i.id_category = 2
+        WHERE i.category = 'sector'
       )
       SELECT symbol,
         CASE 
