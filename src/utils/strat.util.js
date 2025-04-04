@@ -39,9 +39,9 @@ export const getAvgVolume = ({ data }) => {
   return avgVolume;
 }
 
-export const getBarType = ({ recentHigh, recentLow, previousHigh, previousLow }) => {
+export const getBarType = ({ recentOpen, recentHigh, recentLow, recentClose, previousHigh, previousLow }) => {
 
-  const candlePattern = getCandlePattern({ recentHigh, recentLow, previousHigh, previousLow });
+  const candlePattern = getCandlePattern({ open: recentOpen, high: recentHigh, low: recentLow, close: recentClose });
 
   if (candlePattern === NONE) {
     const scenario = getScenario({ recentHigh, recentLow, previousHigh, previousLow });
@@ -239,6 +239,8 @@ export const getStratResult = ({ symbol, daily, weekly, monthly, quarterly }) =>
   const lastDay = daily[0].date;
   const lastPrice = daily[0].close;
   const percentageChange = getPriceChange({ recentPrice: daily[0].close, previousPrice: daily[1].close });
+  const priceChange = Math.abs(daily[0].close - daily[1].close);
+  const atr = calculateATR({ data: daily });
   const volume = daily[0].volume;
   const weeklyVolume = weekly[0].volume;
   const avgVolume = getAvgVolume({ data: daily });
@@ -349,7 +351,9 @@ export const getStratResult = ({ symbol, daily, weekly, monthly, quarterly }) =>
   return {
     symbol,
     lastPrice,
+    priceChange,
     percentageChange,
+    atr,
     volume,
     unusualVolume,
     avgVolume,
@@ -370,6 +374,32 @@ export const getStratResult = ({ symbol, daily, weekly, monthly, quarterly }) =>
     potentialEntry,
     points,
   };
+}
+
+export const calculateATR = ({ data, period = 14 }) => {
+  if (data.length < period + 1) {
+    throw new Error("Not enough data to calculate ATR");
+  }
+
+  const trueRanges = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const high = data[i].high;
+    const low = data[i].low;
+    const prevClose = data[i - 1].close;
+
+    const tr = Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    );
+
+    trueRanges.push(tr);
+  }
+
+  const atr = trueRanges.slice(-period).reduce((sum, val) => sum + val, 0) / period;
+
+  return atr;
 }
 
 // Filters
@@ -467,6 +497,44 @@ export const isScenarioValid = ({ filterScenario, scenario }) => {
   return true;
 
 }
+
+export const isAtrValid = ({ filterAtr, atr }) => {
+
+  if (filterAtr === 'under_0.5' && atr > 0.5) {
+    return false;
+  }
+
+  if (filterAtr === 'under_1' && atr > 1) {
+    return false;
+  }
+
+  if (filterAtr === 'under_2' && atr > 2) {
+    return false;
+  }
+
+  if (filterAtr === 'under_3' && atr > 3) {
+    return false;
+  }
+
+  if (filterAtr === 'over_0.5' && atr < 0.5) {
+    return false;
+  }
+
+  if (filterAtr === 'over_1' && atr < 1) {
+    return false;
+  }
+
+  if (filterAtr === 'over_2' && atr < 2) {
+    return false;
+  }
+
+  if (filterAtr === 'over_3' && atr < 3) {
+    return false;
+  }
+
+  return true;
+}
+
 
 // TODO: Idea agregar la opcion de exportar la watchlist para agregarla a TradingView y Permitir compartir la watchlist con otros
 // TODO: Ocultar sectores que no tengan stocks relacionados del menu de Sectors

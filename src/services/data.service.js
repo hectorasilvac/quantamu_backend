@@ -198,25 +198,39 @@ export const addStratData = async ({ arrObject }) => {
   )).filter(Boolean);
 }
 
-export const fetchAggregatedData = async ({ symbols = [], limit = 999999, isSector = 0 }) => {
+export const fetchAggregatedData = async ({ symbols = [], limit = 999999, isSector = null }) => {
   if (!Array.isArray(symbols)) {
     symbols = [symbols]
   }
 
   let assets;
 
-  if (isSector > 0) {
+  if (isSector === 0) {
     assets = await sql`
-      SELECT id, symbol FROM instrument
-      WHERE id_sector = ${isSector}
+      SELECT i.id, i.symbol, s.name as sector_name
+      FROM instrument i
+      LEFT JOIN sector s ON i.id_sector = s.id
+      WHERE i.category != 'future'
+    `
+    
+    symbols = assets.map((asset) => asset.symbol);
+
+  } else if (isSector > 0) {
+    assets = await sql`
+      SELECT i.id, i.symbol, s.name as sector_name
+      FROM instrument i
+      LEFT JOIN sector s ON i.id_sector = s.id
+      WHERE i.id_sector = ${isSector}
     `;
     
     symbols = assets.map((asset) => asset.symbol);
 
   } else {
     assets = await sql`
-      SELECT id, symbol FROM instrument
-      WHERE symbol = ANY(${symbols})
+      SELECT i.id, i.symbol, s.name as sector_name
+      FROM instrument i
+      LEFT JOIN sector s ON i.id_sector = s.id
+      WHERE i.symbol = ANY(${symbols})
     `
   }
 
@@ -224,10 +238,12 @@ export const fetchAggregatedData = async ({ symbols = [], limit = 999999, isSect
     throw new Error('No assets found for the provided symbols')
   }
 
-  // Crear un mapa para facilitar la búsqueda del id por símbolo
+  // Crear un mapa para facilitar la búsqueda del id y sector_name por símbolo
   const assetMap = {}
+  const sectorMap = {}
   assets.forEach((asset) => {
     assetMap[asset.symbol] = asset.id
+    sectorMap[asset.symbol] = asset.sector_name
   })
   const assetIds = Object.values(assetMap)
 
@@ -331,6 +347,7 @@ export const fetchAggregatedData = async ({ symbols = [], limit = 999999, isSect
     const assetId = assetMap[symbol]
     return {
       symbol,
+      sectorName: sectorMap[symbol] || null,
       daily: formatData(dailyData.filter((d) => d.assetId === assetId)),
       weekly: formatData(weeklyData.filter((d) => d.assetId === assetId)),
       monthly: formatData(monthlyData.filter((d) => d.assetId === assetId)),
