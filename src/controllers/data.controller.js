@@ -1,4 +1,27 @@
-import { formatOhlcFromApi, insertOhlcBatch, fetchGroupedOhlcData, fetchAggregatedData, fetchSectorsData, fetchStratSectors, fetchStratBySector, fetchStratBySymbol, fetchSymbols, fetchSectorsPerformance, fetchStratGainers, fetchStratLosers, fetchStratVolume, insertNewInstruments, editInstruments, removeInstrument, fetchSectorStockRelations, insertSectorStockRelations, editSectorStockRelations, removeSectorStockRelation, fetchFutureSectorRelations, insertFutureSectorRelations  } from '../services/data.service.js'
+import { 
+  formatOhlcFromApi, 
+  insertOhlcBatch, 
+  fetchGroupedOhlcData, 
+  fetchAggregatedData, 
+  fetchSectorsData, 
+  fetchStratSectors, 
+  fetchStratBySector, 
+  fetchStratBySymbol, 
+  fetchSymbols, 
+  fetchSectorsPerformance, 
+  fetchStratGainers, 
+  fetchStratLosers, 
+  fetchStratVolume, 
+  insertNewInstruments, 
+  editInstruments, 
+  removeInstrument, 
+  fetchSectorStockRelations, 
+  insertSectorStockRelations, 
+  editSectorStockRelations, 
+  removeSectorStockRelation, 
+  fetchFutureSectorRelations, 
+  insertFutureSectorRelations, 
+  fetchGainersAndLosers  } from '../services/data.service.js'
 
 
 export const getOhlcGroupedData = async (req, res) => {
@@ -180,6 +203,23 @@ export const getSectorsPerformance = async (req, res) => {
       success: false,
       data: null,
       message: `Sectors Performance: Error retrieving data: ${error.message}`
+    });
+  }
+};
+
+export const getMovers = async (req, res) => {
+  try {
+    const data = await fetchGainersAndLosers();
+    res.status(200).json({
+      success: true,
+      data,
+      message: 'Movers: Data retrieved successfully.'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      data: null,
+      message: `Movers: Error retrieving data: ${error.message}`
     });
   }
 };

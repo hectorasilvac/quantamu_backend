@@ -82,7 +82,6 @@ export const fetchDataByFilters = ({
     filterVolume = ANY,
     filterAtr = ANY,
 }) => {
-    // Determinar qué filtros están activos para evitar cálculos innecesarios
     const isPriceFilterActive = filterPrice !== ANY;
     const isVolumeFilterActive = filterVolume !== ANY;
     const isAvgVolumeFilterActive = filterAvgVolume !== ANY;
@@ -106,7 +105,6 @@ export const fetchDataByFilters = ({
     for (let i = 0; i < arrLength; i++) {
         const { symbol, sectorName, daily, weekly, monthly, quarterly } = arrObjects[i];
 
-        // Verificación temprana de datos requeridos
         if (!daily || !weekly || !monthly || !quarterly || daily.length < 3 || weekly.length < 3 || monthly.length < 3 || quarterly.length < 3) {
             continue;
         }
@@ -124,27 +122,22 @@ export const fetchDataByFilters = ({
         const quarterly1 = quarterly[1];
         const quarterly2 = quarterly[2];
 
-        // Filtro de precio - aplicado primero por ser ligero
         const lastPrice = daily0.close;
         if (isPriceFilterActive && !isPriceValid({ filterPrice, lastPrice })) {
             continue;
         }
 
-        // Filtro de volumen - aplicado temprano por ser ligero
         const volume = daily0.volume;
         if (isVolumeFilterActive && !isVolumeValid({ filterVolume, volume })) {
             continue;
         }
 
-        // Precalcular escenarios y tipos de barras que se usarán múltiples veces
         let dailyScenario, weeklyScenario, monthlyScenario, quarterlyScenario;
         let dailyContinuity, weeklyContinuity, monthlyContinuity, quarterlyContinuity;
         
-        // Tipos de barras actuales
         let currBarDaily, currBarWeekly, currBarMonthly, currBarQuarterly;
         let prevBarDaily, prevBarWeekly, prevBarMonthly, prevBarQuarterly;
 
-        // Solo calcular si algún filtro los necesita
         if (isCurrBarDailyActive) {
             currBarDaily = getBarType({
                 recentOpen: daily0.open,
@@ -243,13 +236,11 @@ export const fetchDataByFilters = ({
             }
         }
 
-        // Calcular continuidad diaria - necesaria para otros cálculos
         dailyContinuity = daily0.close > daily0.open ? UP : DOWN;
         if (isContinuityDailyActive && dailyContinuity !== filterContinuityDaily) {
             continue;
         }
 
-        // Calcular escenario diario - necesario para otros cálculos
         if (isContinuityWeeklyActive || isContinuityMonthlyActive || isContinuityQuaterlyActive) {
             dailyScenario = getScenario({
                 recentHigh: daily0.high,

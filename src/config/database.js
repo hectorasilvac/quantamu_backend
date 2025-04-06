@@ -7,6 +7,25 @@ const sql = neon(process.env.DATABASE_URL);
 
 const initializeDB = async () => {
   try {
+
+    await sql`
+    CREATE TABLE IF NOT EXISTS plans (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(50) UNIQUE NOT NULL
+    )
+      `;
+
+    await sql`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      first_name VARCHAR(255) NOT NULL,
+      last_name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      plan_id INTEGER REFERENCES plans(id) DEFAULT 1
+    )
+  `;
+
     await sql`
     CREATE TABLE IF NOT EXISTS sector (
       id SERIAL PRIMARY KEY,
@@ -51,7 +70,7 @@ const initializeDB = async () => {
       FOREIGN KEY (id_stock) REFERENCES instrument(id) ON DELETE CASCADE,
       UNIQUE (id_sector, id_stock)
     )
-  `;  
+  `;
 
     await sql`
       CREATE TABLE IF NOT EXISTS future_sector (

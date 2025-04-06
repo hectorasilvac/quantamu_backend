@@ -23,6 +23,7 @@ import {
   deleteSectorStockRelations,
   getFutureSectorRelations,
   addFutureSectorRelations,
+  getMovers,
 } from '../controllers/data.controller.js';
 
 const router = express.Router();
@@ -33,6 +34,7 @@ router.get('/losers', getTopLosers);
 router.get('/grouped', validate(groupedSchema, 'query'), getOhlcGroupedData);
 // TODO: Agregar schema para validar datos de instruments/add y instruments/update y delete
 
+router.get('/movers', getMovers);
 router.post('/instruments/add', addNewInstruments);
 router.put('/instruments/update', updateInstruments);
 router.delete('/instruments/delete/:id', deleteInstrument);

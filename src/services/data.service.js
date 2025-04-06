@@ -614,29 +614,269 @@ export const fetchStratBySymbol = async ({ symbol }) => {
 
 export const fetchSectorsPerformance = async () => {
   try {
-    // Calcular performance directamente en SQL utilizando funciones de ventana y una CTE
-    const result = await sql`
-      WITH sector_ohlc AS (
-        SELECT
+    // Calcular rendimientos para diferentes períodos
+    const sql_query = `
+      WITH time_periods AS (
+        SELECT 'latest_date' AS period_name, MAX(date) AS ref_date FROM ohlc
+        UNION ALL
+        SELECT '1d_ago', MAX(date) FROM ohlc WHERE date < (SELECT MAX(date) FROM ohlc)
+        UNION ALL
+        SELECT '1w_ago', MAX(date) FROM ohlc WHERE date <= (SELECT MAX(date) FROM ohlc) - INTERVAL '7 days'
+        UNION ALL
+        SELECT '1m_ago', MAX(date) FROM ohlc WHERE date <= (SELECT MAX(date) FROM ohlc) - INTERVAL '1 month'
+        UNION ALL
+        SELECT '3m_ago', MAX(date) FROM ohlc WHERE date <= (SELECT MAX(date) FROM ohlc) - INTERVAL '3 months'
+        UNION ALL
+        SELECT 'ytd_start', MAX(date) FROM ohlc WHERE EXTRACT(YEAR FROM date) = EXTRACT(YEAR FROM (SELECT MAX(date) FROM ohlc)) AND EXTRACT(MONTH FROM date) = 1 AND EXTRACT(DAY FROM date) <= 7
+      ),
+      sector_prices AS (
+        SELECT 
+          i.id AS sector_id,
           i.symbol,
+          i.name,
+          tp.period_name,
+          o.date,
           o.close,
-          ROW_NUMBER() OVER (PARTITION BY i.id ORDER BY o.date DESC) AS rn
+          ROW_NUMBER() OVER (PARTITION BY i.id, tp.period_name ORDER BY ABS(o.date - tp.ref_date)) AS rn
         FROM instrument i
         JOIN ohlc o ON o.id_instrument = i.id
+        CROSS JOIN time_periods tp
         WHERE i.category = 'sector'
+      ),
+      closest_prices AS (
+        SELECT 
+          sector_id, 
+          symbol,
+          name,
+          period_name, 
+          close 
+        FROM sector_prices
+        WHERE rn = 1
+      ),
+      period_calculations AS (
+        SELECT 
+          latest.sector_id,
+          latest.symbol,
+          latest.name,
+          CASE 
+            WHEN day1.close IS NOT NULL AND day1.close != 0 THEN 
+              ROUND(((latest.close - day1.close) / day1.close) * 100, 1)
+            ELSE NULL
+          END AS perf_1d,
+          CASE 
+            WHEN week1.close IS NOT NULL AND week1.close != 0 THEN 
+              ROUND(((latest.close - week1.close) / week1.close) * 100, 1)
+            ELSE NULL
+          END AS perf_1w,
+          CASE 
+            WHEN month1.close IS NOT NULL AND month1.close != 0 THEN 
+              ROUND(((latest.close - month1.close) / month1.close) * 100, 1)
+            ELSE NULL
+          END AS perf_1m,
+          CASE 
+            WHEN month3.close IS NOT NULL AND month3.close != 0 THEN 
+              ROUND(((latest.close - month3.close) / month3.close) * 100, 1)
+            ELSE NULL
+          END AS perf_3m,
+          CASE 
+            WHEN ytd.close IS NOT NULL AND ytd.close != 0 THEN 
+              ROUND(((latest.close - ytd.close) / ytd.close) * 100, 1)
+            ELSE NULL
+          END AS perf_ytd
+        FROM closest_prices latest
+        LEFT JOIN closest_prices day1 ON latest.sector_id = day1.sector_id AND day1.period_name = '1d_ago'
+        LEFT JOIN closest_prices week1 ON latest.sector_id = week1.sector_id AND week1.period_name = '1w_ago'
+        LEFT JOIN closest_prices month1 ON latest.sector_id = month1.sector_id AND month1.period_name = '1m_ago'
+        LEFT JOIN closest_prices month3 ON latest.sector_id = month3.sector_id AND month3.period_name = '3m_ago'
+        LEFT JOIN closest_prices ytd ON latest.sector_id = ytd.sector_id AND ytd.period_name = 'ytd_start'
+        WHERE latest.period_name = 'latest_date'
       )
-      SELECT symbol,
-        CASE 
-          WHEN MAX(CASE WHEN rn = 16 THEN close END) IS NOT NULL THEN 
-            ROUND(((MAX(CASE WHEN rn = 1 THEN close END) - MAX(CASE WHEN rn = 16 THEN close END)) / MAX(CASE WHEN rn = 16 THEN close END)) * 100::numeric, 1)
-          ELSE 0
-        END AS performance
-      FROM sector_ohlc
-      GROUP BY symbol;
+      SELECT 
+        symbol,
+        name,
+        perf_1d,
+        perf_1w,
+        perf_1m,
+        perf_3m,
+        perf_ytd
+      FROM period_calculations
+      WHERE symbol IS NOT NULL
+      ORDER BY symbol;
     `;
+
+    const sectors = await sql(sql_query);
+
+    // Reorganizar los resultados en el formato solicitado
+    const formatPeriodData = (sectors, performanceKey) => {
+      // Filtrar sectores con rendimiento válido para este período
+      const validSectors = sectors.filter(s => s[performanceKey] !== null);
+      
+      // Ordenar para identificar ganadores y perdedores
+      const sortedSectors = [...validSectors].sort((a, b) => b[performanceKey] - a[performanceKey]);
+      
+      // Crear objetos con el formato requerido
+      const formattedSectors = sortedSectors.map(s => ({
+        symbol: s.symbol,
+        name: s.name,
+        performance: s[performanceKey]
+      }));
+      
+      // Dividir en ganadores y perdedores
+      const gainers = formattedSectors.filter(s => s.performance > 0);
+      const losers = formattedSectors.filter(s => s.performance < 0);
+      
+      return {
+        gainers,
+        losers
+      };
+    };
+
+    // Crear el objeto de respuesta
+    const result = {
+      "1d": formatPeriodData(sectors, "perf_1d"),
+      "1w": formatPeriodData(sectors, "perf_1w"),
+      "1m": formatPeriodData(sectors, "perf_1m"),
+      "3m": formatPeriodData(sectors, "perf_3m"),
+      "ytd": formatPeriodData(sectors, "perf_ytd")
+    };
+
     return result;
   } catch (error) {
-    throw new Error(`Error fetching sectors performance (SQL): ${error.message}`);
+    throw new Error(`Error fetching sectors performance: ${error.message}`);
+  }
+};
+
+export const fetchGainersAndLosers = async () => {
+  try {
+    // Calcular rendimientos para diferentes períodos
+    const sql_query = `
+      WITH time_periods AS (
+        SELECT 'latest_date' AS period_name, MAX(date) AS ref_date FROM ohlc
+        UNION ALL
+        SELECT '1d_ago', MAX(date) FROM ohlc WHERE date < (SELECT MAX(date) FROM ohlc)
+        UNION ALL
+        SELECT '1w_ago', MAX(date) FROM ohlc WHERE date <= (SELECT MAX(date) FROM ohlc) - INTERVAL '7 days'
+        UNION ALL
+        SELECT '1m_ago', MAX(date) FROM ohlc WHERE date <= (SELECT MAX(date) FROM ohlc) - INTERVAL '1 month'
+        UNION ALL
+        SELECT '3m_ago', MAX(date) FROM ohlc WHERE date <= (SELECT MAX(date) FROM ohlc) - INTERVAL '3 months'
+        UNION ALL
+        SELECT 'ytd_start', MAX(date) FROM ohlc WHERE EXTRACT(YEAR FROM date) = EXTRACT(YEAR FROM (SELECT MAX(date) FROM ohlc)) AND EXTRACT(MONTH FROM date) = 1 AND EXTRACT(DAY FROM date) <= 7
+      ),
+      stock_prices AS (
+        SELECT 
+          i.id AS stock_id,
+          i.symbol,
+          i.name,
+          tp.period_name,
+          o.date,
+          o.close,
+          ROW_NUMBER() OVER (PARTITION BY i.id, tp.period_name ORDER BY ABS(o.date - tp.ref_date)) AS rn
+        FROM instrument i
+        JOIN ohlc o ON o.id_instrument = i.id
+        CROSS JOIN time_periods tp
+        WHERE i.category = 'stock'
+      ),
+      closest_prices AS (
+        SELECT 
+          stock_id, 
+          symbol,
+          name,
+          period_name, 
+          close 
+        FROM stock_prices
+        WHERE rn = 1
+      ),
+      period_calculations AS (
+        SELECT 
+          latest.stock_id,
+          latest.symbol,
+          latest.name,
+          CASE 
+            WHEN day1.close IS NOT NULL AND day1.close != 0 THEN 
+              ROUND(((latest.close - day1.close) / day1.close) * 100, 1)
+            ELSE NULL
+          END AS perf_1d,
+          CASE 
+            WHEN week1.close IS NOT NULL AND week1.close != 0 THEN 
+              ROUND(((latest.close - week1.close) / week1.close) * 100, 1)
+            ELSE NULL
+          END AS perf_1w,
+          CASE 
+            WHEN month1.close IS NOT NULL AND month1.close != 0 THEN 
+              ROUND(((latest.close - month1.close) / month1.close) * 100, 1)
+            ELSE NULL
+          END AS perf_1m,
+          CASE 
+            WHEN month3.close IS NOT NULL AND month3.close != 0 THEN 
+              ROUND(((latest.close - month3.close) / month3.close) * 100, 1)
+            ELSE NULL
+          END AS perf_3m,
+          CASE 
+            WHEN ytd.close IS NOT NULL AND ytd.close != 0 THEN 
+              ROUND(((latest.close - ytd.close) / ytd.close) * 100, 1)
+            ELSE NULL
+          END AS perf_ytd
+        FROM closest_prices latest
+        LEFT JOIN closest_prices day1 ON latest.stock_id = day1.stock_id AND day1.period_name = '1d_ago'
+        LEFT JOIN closest_prices week1 ON latest.stock_id = week1.stock_id AND week1.period_name = '1w_ago'
+        LEFT JOIN closest_prices month1 ON latest.stock_id = month1.stock_id AND month1.period_name = '1m_ago'
+        LEFT JOIN closest_prices month3 ON latest.stock_id = month3.stock_id AND month3.period_name = '3m_ago'
+        LEFT JOIN closest_prices ytd ON latest.stock_id = ytd.stock_id AND ytd.period_name = 'ytd_start'
+        WHERE latest.period_name = 'latest_date'
+      )
+      SELECT 
+        symbol,
+        name,
+        perf_1d,
+        perf_1w,
+        perf_1m,
+        perf_3m,
+        perf_ytd
+      FROM period_calculations
+      WHERE symbol IS NOT NULL
+      ORDER BY symbol;
+    `;
+
+    const stocks = await sql(sql_query);
+
+    // Reorganizar los resultados en el formato solicitado con límite de 20 por categoría
+    const formatPeriodData = (stocks, performanceKey) => {
+      // Filtrar stocks con rendimiento válido para este período
+      const validStocks = stocks.filter(s => s[performanceKey] !== null);
+      
+      // Ordenar para identificar ganadores y perdedores
+      const sortedStocks = [...validStocks].sort((a, b) => b[performanceKey] - a[performanceKey]);
+      
+      // Crear objetos con el formato requerido
+      const formattedStocks = sortedStocks.map(s => ({
+        symbol: s.symbol,
+        name: s.name,
+        performance: s[performanceKey]
+      }));
+      
+      // Dividir en ganadores y perdedores limitando a 20 cada uno
+      const gainers = formattedStocks.filter(s => s.performance > 0).slice(0, 20);
+      const losers = formattedStocks.filter(s => s.performance < 0).sort((a, b) => a.performance - b.performance).slice(0, 20);
+      
+      return {
+        gainers,
+        losers
+      };
+    };
+
+    // Crear el objeto de respuesta
+    const result = {
+      "1d": formatPeriodData(stocks, "perf_1d"),
+      "1w": formatPeriodData(stocks, "perf_1w"),
+      "1m": formatPeriodData(stocks, "perf_1m"),
+      "3m": formatPeriodData(stocks, "perf_3m"),
+      "ytd": formatPeriodData(stocks, "perf_ytd")
+    };
+
+    return result;
+  } catch (error) {
+    throw new Error(`Error fetching gainers and losers: ${error.message}`);
   }
 };
 
