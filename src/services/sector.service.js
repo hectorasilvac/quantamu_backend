@@ -1,6 +1,81 @@
 import { sql } from '../config/database.js'
 
-export const fetchMarketSectors = async () => {
+export const fetchSector = async () => {
+    try {
+        return await sql`
+        SELECT id, name
+        FROM sector
+        ORDER BY id;
+      `;
+    } catch (error) {
+        throw error;
+    }
+}
+
+export const insertSector = async (arrSector) => {
+    try {
+        const results = [];
+        
+        for (const sector of arrSector) {
+            const result = await sql`
+                INSERT INTO sector (name)
+                VALUES (${sector.name})
+                ON CONFLICT (name) DO UPDATE 
+                SET name = EXCLUDED.name
+                RETURNING id, name,
+                  (xmax = 0) as is_insert;  -- true si es inserción, false si es actualización
+            `;
+            results.push(...result);
+        }
+
+        return { id: results.map(row => row.id), count: results.length };
+    } catch (error) {
+        throw error;
+    }
+}
+
+export const updateSector = async (arrSector) => {
+    try {
+        const results = [];
+
+        for (const sector of arrSector) {
+            const result = await sql`
+                UPDATE sector
+                SET name = ${sector.name}
+                WHERE id = ${Number(sector.id)}
+                RETURNING id, name,
+                  (xmax = 0) as is_insert;  -- true si es inserción, false si es actualización
+            `;
+            results.push(...result);
+        }
+
+        return results.filter(row => row.is_insert);
+    } catch (error) {
+        throw error;
+    }
+}
+
+export const deleteSector = async (arrSector) => {
+    try {
+        const results = [];
+
+        for (const sector of arrSector) {
+            const result = await sql`
+                DELETE FROM sector
+                WHERE id = ${Number(sector.id)}
+                RETURNING id, name,
+                  (xmax = 0) as is_insert;  -- true si es inserción, false si es actualización
+            `;
+            results.push(...result);
+        }
+
+        return results.filter(row => row.is_insert);
+    } catch (error) {
+        throw error;
+    }
+}
+    
+export const fetchSectorCorrelations = async () => {
     try {
         // Obtener todos los futuros
         const futures = await sql`

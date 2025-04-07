@@ -1,8 +1,18 @@
 import express from 'express';
-import { getMarketSectors } from '../controllers/sector.controller.js';
+import { 
+    getSector, 
+    addSector, 
+    editSector, 
+    removeSector, 
+    getSectorCorrelations 
+} from '../controllers/sector.controller.js';
 
 const router = express.Router()
 
-router.get('/', getMarketSectors)
+router.get("/", getSector);
+router.post('/', addSector);
+router.put('/', editSector);
+router.delete('/', removeSector);
+router.get('/correlations', getSectorCorrelations);
 
 export default router;

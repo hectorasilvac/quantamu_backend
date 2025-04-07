@@ -22,7 +22,8 @@ const initializeDB = async () => {
       last_name VARCHAR(255) NOT NULL,
       email VARCHAR(255) NOT NULL UNIQUE,
       password TEXT NOT NULL,
-      plan_id INTEGER REFERENCES plans(id) DEFAULT 1
+      plan_id INTEGER REFERENCES plans(id) DEFAULT 1,
+      role VARCHAR(50) DEFAULT 'visitor'
     )
   `;
 

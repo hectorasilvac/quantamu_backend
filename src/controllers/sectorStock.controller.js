@@ -1,19 +1,18 @@
 import { 
-  fetchSector,
-  insertSector,
-  updateSector,
-  deleteSector,
-  fetchSectorCorrelations
- } from '../services/sector.service.js';
+  fetchSectorStock,
+  insertSectorStock,
+  updateSectorStock,
+  deleteSectorStock,
+ } from '../services/sectorStock.service.js';
 
-export const getSector = async (req, res) => {
+export const getSectorStock = async (req, res) => {
   try {
-      const result = await fetchSector()
+      const result = await fetchSectorStock()
       res.status(200).json({
           success: true,
           data: result,
           count: result?.length || 0,
-          message: 'Sector(s) fetched successfully.'
+          message: 'Sector-Stock(s) fetched successfully.'
       })
   } catch (error) {
       res.status(500).json({
@@ -25,16 +24,16 @@ export const getSector = async (req, res) => {
   }
 }
 
-export const addSector = async (req, res) => {
-  const sector = req.body
+export const addSectorStock = async (req, res) => {
+  const sectorStock = req.body
 
   try {
-      const result = await insertSector(sector)
+      const result = await insertSectorStock(sectorStock)
       res.status(200).json({
           success: true,
           data: result.id,
           count: result.count,
-          message: 'Sector(s) inserted successfully.'
+          message: 'Sector-Stock(s) inserted successfully.'
       })
   } catch (error) {
       res.status(500).json({
@@ -46,16 +45,16 @@ export const addSector = async (req, res) => {
   }
 }
 
-export const editSector = async (req, res) => {
-  const sector = req.body
+export const editSectorStock = async (req, res) => {
+  const sectorStock = req.body
 
   try {
-      const result = await updateSector(sector)
+      const result = await updateSectorStock(sectorStock)
       res.status(200).json({
           success: true,
           data: null,
           count: result?.length || 0,
-          message: 'Sector(s) updated successfully.'
+          message: 'Sector-Stock(s) updated successfully.'
       })
   } catch (error) {
       res.status(500).json({
@@ -67,16 +66,16 @@ export const editSector = async (req, res) => {
   }
 }
 
-export const removeSector = async (req, res) => {
-  const sector = req.body
+export const removeSectorStock = async (req, res) => {
+  const sectorStock = req.body
 
   try {
-      const result = await deleteSector(sector)
+      const result = await deleteSectorStock(sectorStock)
       res.status(200).json({
           success: true,
           data: null,
           count: result?.length || 0,
-          message: 'Sector(s) deleted successfully.'
+          message: 'Sector-Stock(s) deleted successfully.'
       })
   } catch (error) {
       res.status(500).json({
@@ -87,20 +86,3 @@ export const removeSector = async (req, res) => {
       })
   }
 }
-
-export const getSectorCorrelations = async (req, res) => {  
-    try {
-      const result = await fetchSectorCorrelations();
-      res.status(200).json({
-        success: true,
-        data: result,
-        message: 'Sector correlations fetched successfully.'
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        data: null,
-        message: `Error fetching sector correlations: (${error})`
-      });
-    }
-  }

@@ -276,7 +276,7 @@ export const fetchAggregatedData = async ({ symbols = [], limit = 999999, isSect
       SELECT * FROM (
         SELECT 
           id_instrument AS "assetId",
-          date_trunc('week', date) AS date,
+          MIN(date) AS date,
           (array_agg(open ORDER BY date ASC))[1] AS open,
           MAX(high) AS high,
           MIN(low) AS low,
@@ -295,7 +295,7 @@ export const fetchAggregatedData = async ({ symbols = [], limit = 999999, isSect
       SELECT * FROM (
         SELECT 
           id_instrument AS "assetId",
-          date_trunc('month', date) AS date,
+          MIN(date) AS date,
           (array_agg(open ORDER BY date ASC))[1] AS open,
           MAX(high) AS high,
           MIN(low) AS low,
@@ -314,7 +314,7 @@ export const fetchAggregatedData = async ({ symbols = [], limit = 999999, isSect
       SELECT * FROM (
         SELECT 
           id_instrument AS "assetId",
-          date_trunc('quarter', date) AS date,
+          MIN(date) AS date,
           (array_agg(open ORDER BY date ASC))[1] AS open,
           MAX(high) AS high,
           MIN(low) AS low,
