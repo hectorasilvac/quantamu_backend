@@ -3,7 +3,7 @@ import { sql } from '../config/database.js'
 export const fetchSector = async () => {
     try {
         return await sql`
-        SELECT id, name
+        SELECT id, name, id_future
         FROM sector
         ORDER BY id;
       `;
@@ -18,11 +18,11 @@ export const insertSector = async (arrSector) => {
         
         for (const sector of arrSector) {
             const result = await sql`
-                INSERT INTO sector (name)
-                VALUES (${sector.name})
+                INSERT INTO sector (name, id_future)
+                VALUES (${sector.name}, ${sector.id_future})
                 ON CONFLICT (name) DO UPDATE 
                 SET name = EXCLUDED.name
-                RETURNING id, name,
+                RETURNING id, name, id_future,
                   (xmax = 0) as is_insert;  -- true si es inserción, false si es actualización
             `;
             results.push(...result);
@@ -41,9 +41,9 @@ export const updateSector = async (arrSector) => {
         for (const sector of arrSector) {
             const result = await sql`
                 UPDATE sector
-                SET name = ${sector.name}
+                SET name = ${sector.name}, id_future = ${sector.id_future}
                 WHERE id = ${Number(sector.id)}
-                RETURNING id, name,
+                RETURNING id, name, id_future,
                   (xmax = 0) as is_insert;  -- true si es inserción, false si es actualización
             `;
             results.push(...result);
@@ -63,7 +63,7 @@ export const deleteSector = async (arrSector) => {
             const result = await sql`
                 DELETE FROM sector
                 WHERE id = ${Number(sector.id)}
-                RETURNING id, name,
+                RETURNING id, name, id_future,
                   (xmax = 0) as is_insert;  -- true si es inserción, false si es actualización
             `;
             results.push(...result);

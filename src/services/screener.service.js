@@ -147,9 +147,11 @@ export const fetchDataByFilters = ({
                 previousHigh: daily1.high,
                 previousLow: daily1.low
             });
+
             if (!isScenarioValid({ filterScenario: filterCurrBarDaily, scenario: currBarDaily })) {
                 continue;
             }
+
         }
 
         if (isCurrBarWeeklyActive) {

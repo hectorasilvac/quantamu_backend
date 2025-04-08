@@ -723,7 +723,7 @@ export const fetchSectorsPerformance = async () => {
       
       // Dividir en ganadores y perdedores
       const gainers = formattedSectors.filter(s => s.performance > 0);
-      const losers = formattedSectors.filter(s => s.performance < 0);
+      const losers = formattedSectors.filter(s => s.performance < 0).sort((a, b) => a.performance - b.performance);
       
       return {
         gainers,

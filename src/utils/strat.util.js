@@ -57,11 +57,14 @@ export const getPriceChange = ({ recentPrice, previousPrice }) => {
 }
 
 export const isInsideActionable = ({ pastWeeklyTrigger, dailyData, key = "high" }) => {
-  if (!dailyData?.length) return false;
+  if (!dailyData || dailyData.length === 0) return false;
 
   let referenceLevel = dailyData[0][key];
   let breakoutCount = 0;
   let triggerFound = false;
+
+  const isBreakout = (current, reference) =>
+    key === "high" ? current > reference : current < reference;
 
   for (let i = 1; i < dailyData.length; i++) {
     const currentLevel = dailyData[i][key];
@@ -71,12 +74,14 @@ export const isInsideActionable = ({ pastWeeklyTrigger, dailyData, key = "high" 
       break;
     }
 
-    if (currentLevel > referenceLevel) {
+    if (isBreakout(currentLevel, referenceLevel)) {
       breakoutCount++;
       referenceLevel = currentLevel;
     }
 
-    if (breakoutCount > 1) return false;
+    if (breakoutCount > 1) {
+      return false;
+    }
   }
 
   return triggerFound && breakoutCount <= 1;
@@ -216,7 +221,8 @@ export const getPotentialEntry = ({
   const dailyUpsideTrigger = ([DOWN, INSIDE].includes(scenarios.daily) || dailyPattern === HAMMER);
   const dailyDownsideTrigger = ([UP, INSIDE].includes(scenarios.daily) || dailyPattern === SHOOTER);
 
-  const extraRules = (scenarios.quarterly !== INSIDE) && (avgVolume >= 3_000_000);
+  // const extraRules = (scenarios.quarterly !== INSIDE) && (avgVolume >= 3_000_000);
+  const extraRules = avgVolume >= 3_000_000;
 
   if (upsideContinuity === 3 && dailyUpsideTrigger && extraRules) return UP;
   if (downsideContinuity === 3 && dailyDownsideTrigger && extraRules) return DOWN;
@@ -482,11 +488,11 @@ export const isScenarioValid = ({ filterScenario, scenario }) => {
     return false;
   }
 
-  if (filterScenario === UP_INSIDE && (scenario === DOWN || scenario === OUTSIDE)) {
+  if (filterScenario === UP_INSIDE && (scenario === DOWN || scenario === OUTSIDE || scenario === HAMMER || scenario === SHOOTER)) {
     return false;
   }
 
-  if (filterScenario === DOWN_INSIDE && (scenario === UP || scenario === OUTSIDE)) {
+  if (filterScenario === DOWN_INSIDE && (scenario === UP || scenario === OUTSIDE || scenario === HAMMER || scenario === SHOOTER)) {
     return false;
   }
 
